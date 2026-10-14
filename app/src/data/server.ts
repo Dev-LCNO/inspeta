@@ -1,0 +1,341 @@
+// SERVIDOR FALSO. Mesmas assinaturas que a camada real (Supabase + rotas /api)
+// terá; trocar a implementação não muda nenhuma tela. Regras que o banco real
+// garante (RLS, unique client_uuid, versão imutável) estão reproduzidas aqui.
+import { evaluateForm, validateDefinition, type DefinitionIssue, type FormDefinition, type Previous } from "@app/form-engine";
+import { emitChange, kv, serial } from "./kv";
+import { net } from "./net";
+import { AVALIADOS, FORMULARIOS, HISTORICO, MEMBROS, ORG, VERSOES } from "./seed";
+import {
+  OfflineError,
+  type Avaliado, type FiltroInspecoes, type Formulario, type FormularioVersao, type ID, type Inspecao,
+  type InspecaoEnvio, type InspecaoEvento, type Membro, type Organizacao, type PacoteSync, type ResultadoEnvio,
+} from "./types";
+
+interface State {
+  v: 1;
+  formularios: Formulario[];
+  versoes: FormularioVersao[];
+  avaliados: Avaliado[];
+  inspecoes: Inspecao[];
+  eventos: InspecaoEvento[];
+  eventoSeq: number;
+}
+
+const STATE_KEY = "srv:state";
+const SESSAO_KEY = "inspeta:sessao";
+const uuid = () => crypto.randomUUID();
+const nowISO = () => new Date().toISOString();
+const clone = <T,>(v: T): T => structuredClone(v);
+const latency = () => new Promise((r) => setTimeout(r, 120 + Math.random() * 180));
+
+async function load(): Promise<State> {
+  const s = await kv.get<State>(STATE_KEY);
+  if (s) return s;
+  const fresh: State = {
+    v: 1, formularios: clone(FORMULARIOS), versoes: clone(VERSOES), avaliados: clone(AVALIADOS),
+    inspecoes: [], eventos: [], eventoSeq: 0,
+  };
+  for (const h of HISTORICO) {
+    const m = MEMBROS.find((x) => x.id === h.responsavel_id)!;
+    processar(fresh, m, { ...h, status: "completa", anexos: [], device_id: "seed" }, h.finalizada_em);
+  }
+  await kv.set(STATE_KEY, fresh);
+  return fresh;
+}
+async function save(s: State, topic: string): Promise<void> {
+  await kv.set(STATE_KEY, s);
+  emitChange(topic);
+}
+function mutate<T>(topic: string, fn: (s: State) => T): Promise<T> {
+  return serial(async () => {
+    const s = await load();
+    const out = fn(s);
+    await save(s, topic);
+    return out;
+  });
+}
+
+function log(s: State, inspecao_id: ID, membro_id: ID | null, acao: InspecaoEvento["acao"], dados: Record<string, unknown> = {}, em = nowISO()) {
+  s.eventos.push({ id: ++s.eventoSeq, inspecao_id, membro_id, acao, dados, em });
+}
+
+function anteriores(s: State, formulario_id: ID, avaliado_id: ID, excetoClient?: string): Previous {
+  const form = s.formularios.find((f) => f.id === formulario_id);
+  const meses = form?.rascunho.config.reincidencia_meses ?? 3;
+  const limite = Date.now() - meses * 31 * 864e5;
+  const ult = s.inspecoes
+    .filter((i) => i.formulario_id === formulario_id && i.avaliado_id === avaliado_id && i.status !== "rascunho"
+      && i.client_uuid !== excetoClient && i.finalizada_em && Date.parse(i.finalizada_em) >= limite)
+    .sort((a, b) => (b.finalizada_em ?? "").localeCompare(a.finalizada_em ?? ""))[0];
+  if (!ult) return {};
+  const out: Previous = {};
+  for (const [k, r] of Object.entries(ult.resultado.questoes)) out[k] = { conforme: r.conforme, resposta: ult.respostas[k] };
+  return out;
+}
+
+/** Regra de servidor: grava/atualiza por client_uuid e recalcula com o form-engine. */
+function processar(s: State, m: Membro, e: InspecaoEnvio, agora = nowISO()): ResultadoEnvio {
+  const versao = s.versoes.find((v) => v.id === e.formulario_versao_id && v.formulario_id === e.formulario_id);
+  if (!versao) return { client_uuid: e.client_uuid, ok: false, erro: "invalido", mensagem: "Versão do formulário não encontrada." };
+  if (!pode(m, "aplicar") || !podeFormulario(m, e.formulario_id))
+    return { client_uuid: e.client_uuid, ok: false, erro: "sem_permissao", mensagem: "Você não tem permissão para este formulário." };
+
+  const existente = s.inspecoes.find((i) => i.client_uuid === e.client_uuid);
+  if (existente) {
+    if (existente.responsavel_id !== m.id)
+      return { client_uuid: e.client_uuid, ok: false, erro: "conflito", mensagem: "Inspeção pertence a outra pessoa." };
+    if (existente.status !== "rascunho") {
+      // reenvio de algo já finalizado: idempotente, não altera nada
+      return { client_uuid: e.client_uuid, ok: true, id: existente.id, nota_pct: existente.nota_pct, classificacao: existente.classificacao };
+    }
+  }
+
+  const prev = anteriores(s, e.formulario_id, e.avaliado_id, e.client_uuid);
+  const ev = evaluateForm(versao.definicao, e.respostas, prev);
+  if (e.status === "completa" && ev.pendentes.length)
+    return { client_uuid: e.client_uuid, ok: false, erro: "invalido", mensagem: `${ev.pendentes.length} questão(ões) com pendência.` };
+
+  const resultado: Inspecao["resultado"] = {
+    nao_conformidades: ev.nao_conformidades,
+    questoes: Object.fromEntries(Object.values(ev.questoes).filter((q) => q.visivel).map((q) => [q.key, {
+      conforme: q.conforme, pontos: q.pontos, pontos_max: q.pontos_max, reincidente: q.reincidente, valor_calculado: q.valor_calculado,
+    }])),
+    topicos: Object.fromEntries(Object.values(ev.topicos).map((t) => [t.key, { pct: t.pct, desconto_pct: t.desconto_pct }])),
+  };
+  const base = {
+    org_id: ORG.id, client_uuid: e.client_uuid, formulario_id: e.formulario_id, formulario_versao_id: e.formulario_versao_id,
+    avaliado_id: e.avaliado_id, responsavel_id: m.id, status: e.status, iniciada_em: e.iniciada_em, finalizada_em: e.finalizada_em,
+    geo_inicio: e.geo_inicio ?? null, geo_fim: e.geo_fim ?? null, respostas: e.respostas, anexos: e.anexos,
+    nota_pct: ev.nota_pct, pontos: ev.pontos, pontos_max: ev.pontos_max,
+    classificacao: ev.classificacao?.nome ?? null, classificacao_cor: ev.classificacao?.cor ?? null,
+    qtd_nao_conformidades: ev.nao_conformidades.length, resultado, device_id: e.device_id, sincronizada_em: agora,
+  };
+  let id: ID;
+  if (existente) {
+    Object.assign(existente, base, { updated_at: agora });
+    id = existente.id;
+  } else {
+    id = uuid();
+    s.inspecoes.push({ id, ...base, created_at: agora, updated_at: agora });
+    log(s, id, m.id, "criada", { device_id: e.device_id }, e.iniciada_em);
+  }
+  log(s, id, m.id, "sincronizada", { device_id: e.device_id }, agora);
+  if (e.status === "completa") log(s, id, m.id, "finalizada", { nota_pct: ev.nota_pct, ncs: ev.nao_conformidades.length }, e.finalizada_em ?? agora);
+  return { client_uuid: e.client_uuid, ok: true, id, nota_pct: ev.nota_pct, classificacao: ev.classificacao?.nome ?? null };
+}
+
+export function pode(m: Membro, acao: Membro["acoes"][number]): boolean {
+  return m.is_master || m.acoes.includes(acao);
+}
+function podeFormulario(m: Membro, formId: ID): boolean {
+  return pode(m, "gerenciar_formularios") || m.formularios_permitidos === "todos" || m.formularios_permitidos.includes(formId);
+}
+function membro(id: ID): Membro {
+  const m = MEMBROS.find((x) => x.id === id);
+  if (!m) throw new Error("Sessão inválida");
+  return m;
+}
+function requireOnline() {
+  if (!net.online) throw new OfflineError();
+}
+
+// ---------------------------------------------------------------------------
+// API pública (assinaturas estáveis)
+// ---------------------------------------------------------------------------
+
+export const server = {
+  // ---- sessão ----
+  async entrar(email: string, senha: string): Promise<Membro> {
+    await latency();
+    const m = MEMBROS.find((x) => x.email.toLowerCase() === email.trim().toLowerCase());
+    if (!m || senha.length < 4) throw new Error("E-mail ou senha incorretos.");
+    localStorage.setItem(SESSAO_KEY, m.id);
+    emitChange("sessao");
+    return m;
+  },
+  sessao(): Membro | null {
+    const id = localStorage.getItem(SESSAO_KEY);
+    return id ? MEMBROS.find((m) => m.id === id) ?? null : null;
+  },
+  sair(): void {
+    localStorage.removeItem(SESSAO_KEY);
+    emitChange("sessao");
+  },
+  org(): Organizacao { return ORG; },
+  membros(): Membro[] { return MEMBROS; },
+
+  // ---- formulários ----
+  async listarFormularios() {
+    await latency();
+    const s = await load();
+    return s.formularios.filter((f) => !f.arquivado).map((f) => {
+      const v = s.versoes.find((x) => x.id === f.versao_publicada_id) ?? null;
+      return {
+        ...f,
+        versao_numero: v?.numero ?? null,
+        tem_alteracoes: !v || JSON.stringify(v.definicao) !== JSON.stringify(f.rascunho),
+        qtd_questoes: f.rascunho.topicos.reduce((n, t) => n + t.questoes.length, 0),
+        qtd_inspecoes: s.inspecoes.filter((i) => i.formulario_id === f.id && i.status !== "rascunho").length,
+      };
+    }).sort((a, b) => b.updated_at.localeCompare(a.updated_at));
+  },
+  async obterFormulario(id: ID): Promise<Formulario> {
+    const f = (await load()).formularios.find((x) => x.id === id);
+    if (!f) throw new Error("Formulário não encontrado.");
+    return clone(f);
+  },
+  async criarFormulario(nome: string): Promise<Formulario> {
+    await latency();
+    if (!nome.trim()) throw new Error("Dê um nome ao formulário.");
+    const def: FormDefinition = {
+      config: { calcular_nota: true, casas_decimais: 1, classificacoes: [
+        { nome: "Ruim", cor: "rank-bad", min: 0, max: 69.99 },
+        { nome: "Regular", cor: "rank-mid", min: 70, max: 84.99 },
+        { nome: "Bom", cor: "rank-good", min: 85, max: 100 },
+      ] },
+      topicos: [{ key: uuid(), titulo: "Tópico 1", questoes: [{ key: uuid(), titulo: "", tipo: "escolha_simples", obrigatoria: true, opcoes: [
+        { key: uuid(), texto: "Sim", pontos: 10, conforme: true },
+        { key: uuid(), texto: "Não", pontos: 0, conforme: false },
+      ] }] }],
+    };
+    return mutate("formularios", (s) => {
+      const f: Formulario = { id: uuid(), org_id: ORG.id, nome: nome.trim(), rascunho: def, versao_publicada_id: null, avaliados_vinculados: [], arquivado: false, created_at: nowISO(), updated_at: nowISO() };
+      s.formularios.push(f);
+      return clone(f);
+    });
+  },
+  /** Autosave. `esperado` = updated_at que o editor carregou (trava otimista). */
+  salvarRascunho(id: ID, patch: { nome?: string; rascunho?: FormDefinition; avaliados_vinculados?: ID[] }, esperado?: string): Promise<Formulario> {
+    return mutate("formularios", (s) => {
+      const f = s.formularios.find((x) => x.id === id);
+      if (!f) throw new Error("Formulário não encontrado.");
+      if (esperado && f.updated_at !== esperado) throw new Error("Este formulário foi alterado em outra aba. Recarregue para não perder mudanças.");
+      if (patch.nome !== undefined) f.nome = patch.nome;
+      if (patch.rascunho) f.rascunho = patch.rascunho;
+      if (patch.avaliados_vinculados) f.avaliados_vinculados = patch.avaliados_vinculados;
+      f.updated_at = nowISO();
+      return clone(f);
+    });
+  },
+  async publicar(id: ID, por: ID): Promise<{ ok: true; versao: FormularioVersao } | { ok: false; problemas: DefinitionIssue[] }> {
+    await latency();
+    return mutate("formularios", (s) => {
+      const f = s.formularios.find((x) => x.id === id);
+      if (!f) throw new Error("Formulário não encontrado.");
+      const problemas = validateDefinition(f.rascunho);
+      if (problemas.length) return { ok: false as const, problemas };
+      const numero = Math.max(0, ...s.versoes.filter((v) => v.formulario_id === id).map((v) => v.numero)) + 1;
+      const versao: FormularioVersao = { id: uuid(), formulario_id: id, numero, definicao: clone(f.rascunho), publicado_em: nowISO(), publicado_por: por };
+      s.versoes.push(versao); // versões nunca são alteradas
+      f.versao_publicada_id = versao.id;
+      f.updated_at = nowISO();
+      return { ok: true as const, versao: clone(versao) };
+    });
+  },
+  async obterVersao(id: ID): Promise<FormularioVersao> {
+    const v = (await load()).versoes.find((x) => x.id === id);
+    if (!v) throw new Error("Versão não encontrada.");
+    return clone(v);
+  },
+
+  // ---- avaliados ----
+  async listarAvaliados(): Promise<Avaliado[]> {
+    await latency();
+    return clone((await load()).avaliados).sort((a, b) => a.nome.localeCompare(b.nome, "pt-BR"));
+  },
+  criarAvaliado(dados: Pick<Avaliado, "nome"> & Partial<Avaliado>): Promise<Avaliado> {
+    if (!dados.nome?.trim()) return Promise.reject(new Error("O nome do avaliado é obrigatório."));
+    return mutate("avaliados", (s) => {
+      if (dados.codigo_externo && s.avaliados.some((a) => a.codigo_externo === dados.codigo_externo))
+        throw new Error(`Já existe um avaliado com o código ${dados.codigo_externo}.`);
+      const a: Avaliado = { ...dados, id: uuid(), org_id: ORG.id, nome: dados.nome.trim(), ativo: true, created_at: nowISO(), updated_at: nowISO() };
+      s.avaliados.push(a);
+      return clone(a);
+    });
+  },
+
+  // ---- inspeções (backoffice) ----
+  async listarInspecoes(quem: Membro, filtro: FiltroInspecoes = {}): Promise<Inspecao[]> {
+    await latency();
+    const s = await load();
+    const busca = (filtro.busca ?? "").trim().toLowerCase();
+    const nomeAv = new Map(s.avaliados.map((a) => [a.id, a.nome]));
+    const nomeF = new Map(s.formularios.map((f) => [f.id, f.nome]));
+    const nomeM = new Map(MEMBROS.map((m) => [m.id, m.nome]));
+    return clone(s.inspecoes.filter((i) => {
+      if (!pode(quem, "ver_todas_inspecoes") && i.responsavel_id !== quem.id) return false; // = policy inspecoes_ler
+      if (filtro.status && i.status !== filtro.status) return false;
+      const d = (i.finalizada_em ?? i.iniciada_em).slice(0, 10);
+      if (filtro.de && d < filtro.de) return false;
+      if (filtro.ate && d > filtro.ate) return false;
+      if (busca) {
+        const hay = [nomeAv.get(i.avaliado_id), nomeF.get(i.formulario_id), nomeM.get(i.responsavel_id), i.id.slice(0, 8)].join(" ").toLowerCase();
+        if (!hay.includes(busca)) return false;
+      }
+      return true;
+    }).sort((a, b) => (b.finalizada_em ?? b.iniciada_em).localeCompare(a.finalizada_em ?? a.iniciada_em)));
+  },
+  async obterInspecao(quem: Membro, id: ID): Promise<Inspecao> {
+    const i = (await load()).inspecoes.find((x) => x.id === id);
+    if (!i || (!pode(quem, "ver_todas_inspecoes") && i.responsavel_id !== quem.id)) throw new Error("Inspeção não encontrada.");
+    return clone(i);
+  },
+  async eventos(id: ID): Promise<InspecaoEvento[]> {
+    return clone((await load()).eventos.filter((e) => e.inspecao_id === id));
+  },
+  async anexo(client_uuid: string): Promise<string | undefined> {
+    return kv.get<string>("srv:anexo:" + client_uuid);
+  },
+  registrarRelatorio(id: ID, quem: ID): Promise<void> {
+    return mutate("inspecoes", (s) => log(s, id, quem, "relatorio_enviado", { formato: "pdf" }));
+  },
+
+  // ---- sync do app de campo (exige rede) ----
+  async pacote(membroId: ID): Promise<PacoteSync> {
+    requireOnline();
+    await latency();
+    const m = membro(membroId);
+    const s = await load();
+    const formularios = s.formularios
+      .filter((f) => !f.arquivado && f.versao_publicada_id && podeFormulario(m, f.id))
+      .map((f) => ({
+        formulario_id: f.id, nome: f.nome,
+        versao: clone(s.versoes.find((v) => v.id === f.versao_publicada_id)!),
+        avaliados: f.avaliados_vinculados.length ? f.avaliados_vinculados : ("todos" as const),
+      }));
+    const anterioresMap: PacoteSync["anteriores"] = {};
+    for (const f of formularios) for (const a of s.avaliados) {
+      const p = anteriores(s, f.formulario_id, a.id);
+      if (Object.keys(p).length) anterioresMap[`${f.formulario_id}|${a.id}`] = p as PacoteSync["anteriores"][string];
+    }
+    return { cursor: nowISO(), membro: m, org: ORG, formularios, avaliados: clone(s.avaliados.filter((a) => a.ativo)), anteriores: anterioresMap };
+  },
+  async enviarAnexo(membroId: ID, client_uuid: string, dataUrl: string): Promise<void> {
+    requireOnline();
+    membro(membroId);
+    await latency();
+    if (dataUrl.length > 15 * 1024 * 1024 * 1.37) throw new Error("Arquivo acima de 15 MB.");
+    await kv.set("srv:anexo:" + client_uuid, dataUrl); // put idempotente por client_uuid
+  },
+  async enviarInspecoes(membroId: ID, lote: InspecaoEnvio[]): Promise<ResultadoEnvio[]> {
+    requireOnline();
+    const m = membro(membroId);
+    await latency();
+    if (lote.length > 20) throw new Error("Lote acima de 20 inspeções.");
+    const presentes = new Set(await kv.keys("srv:anexo:"));
+    return mutate("inspecoes", (s) => lote.map((e) => {
+      const falta = e.anexos.find((a) => !presentes.has("srv:anexo:" + a.client_uuid));
+      if (falta) return { client_uuid: e.client_uuid, ok: false as const, erro: "anexo_faltando" as const, mensagem: "Foto ainda não enviada." };
+      return processar(s, m, e);
+    }));
+  },
+
+  /** Só para testes/demonstração: volta ao estado inicial. */
+  async _reset(): Promise<void> {
+    for (const k of await kv.keys("")) await kv.del(k);
+    localStorage.clear();
+    emitChange("reset");
+  },
+};
+
+export type ServerApi = typeof server;
