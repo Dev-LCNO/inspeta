@@ -73,7 +73,7 @@ function Historico({ me }: { me: Membro }) {
           <>
             <p className="muted" aria-live="polite" style={{ margin: "0 0 var(--space-2)" }}>
               {lista.data.length} {lista.data.length === 1 ? "plano" : "planos"}
-              {!situacao ? <> · {contagem.aberto} abertos · <span style={{ color: contagem.em_atraso ? "var(--c-danger)" : undefined }}>{contagem.em_atraso} em atraso</span> · {contagem.finalizado} finalizados</> : null}
+              {!situacao ? <> · {contagem.aberto} {contagem.aberto === 1 ? "aberto" : "abertos"} · <span style={{ color: contagem.em_atraso ? "var(--c-danger)" : undefined }}>{contagem.em_atraso} em atraso</span> · {contagem.finalizado} {contagem.finalizado === 1 ? "finalizado" : "finalizados"}</> : null}
             </p>
             <div className="table-wrap responsive">
               <table className="table">

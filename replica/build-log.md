@@ -55,3 +55,30 @@ Todo o código, texto, ícone e cor foram escritos aqui, a partir do recon e das
 3. Desligar o modo avião do app não disparava o sync automático.
 4. Linha mal formada no `features.csv` do recon (vírgula sem aspas).
 5. O Bun grava o bundle ao lado da entrada quando recebe `--outfile` relativo; o build usa `--outdir` absoluto e falha se o arquivo não existir.
+
+## Marco 2 — obrigatórias restantes · 14/10/2026 · concluído no que dá para fazer sem backend
+
+Nenhuma funcionalidade obrigatória está mais em "não": **21 feitas e 10 parciais de 31**. As parciais dependem do backend real (login, e-mail de verdade, multiempresa) ou são detalhes menores listados na matriz.
+Testes: `tests/e2e-marco2.mjs` (23 verificações). Suíte inteira (`scripts/test.sh`): 19 do motor + 50 ponta a ponta, verde em 3 rodadas seguidas.
+
+| tela | estado | o que falta | o que foi mais difícil do que parecia |
+|---|---|---|---|
+| S16 Relatório | parcial | layout configurável (logos, cor, colunas) — marco 3 | — |
+| S23 Importar avaliados | feito | — | ler .xlsx sem biblioteca: zip + XML na mão, com textos compartilhados e "rich text" do Excel |
+| S24 Histórico de planos | feito | exportar | ordem instável quando dois planos nascem no mesmo milissegundo |
+| S25 Modelos de plano | feito | aprovação do plano (marco 3) | — |
+| S26 Responder plano (público) | feito | — | o motor só cobra a foto depois da resposta; a página avisa as duas coisas de uma vez |
+| E-mails enviados | feito (simulação) | envio real (Resend) no backend | — |
+
+### Decisões tomadas sem confirmação (revisar)
+- **Destinatário do plano:** o modelo escolhe entre o e-mail do avaliado ou um e-mail fixo (ex.: manutenção). Sem e-mail, o plano é criado mesmo assim e o gestor gera o link para mandar por outro canal.
+- **"Copiar link":** o banco guarda só o hash do token, então o link não pode ser mostrado de novo. "Gerar novo link" cria outro e **invalida o anterior** (o original permite copiar o mesmo link).
+- **Modelo editado não muda planos já abertos:** cada plano guarda uma cópia do modelo da época.
+- **Importação:** casa por código; sem código, casa por nome igual (sem diferenciar maiúsculas). Linhas com problema são ignoradas e listadas; o resto entra.
+
+### Bugs encontrados pelos testes e corrigidos
+1. **Aba nova já logada ficava em branco.** O redirecionamento inicial trocava a URL antes de o roteador começar a escutar. Os testes do marco 1 não pegaram porque sempre abriam numa rota final.
+2. **O bundle levava o React de desenvolvimento** (980 KB → 810 KB e mais rápido ao corrigir).
+3. Reenviar uma inspeção repetia o evento "relatório enviado" no histórico (o e-mail em si já não repetia).
+4. A validação nativa do navegador escondia as nossas mensagens nos campos de e-mail.
+5. A página pública numerava a não conformidade errado ("3." em vez de "1.").

@@ -442,10 +442,11 @@ export const server = {
     if (!p) throw new Error("Este link não vale mais. Ele pode ter sido substituído por um mais novo; confira o último e-mail recebido.");
     const i = s.inspecoes.find((x) => x.id === p.inspecao_id)!;
     const v = s.versoes.find((x) => x.id === i.formulario_versao_id)!;
+    const todas = v.definicao.topicos.flatMap((t) => t.questoes); // numeração global, como no formulário
     const nc = p.questao_keys.map((k) => {
-      let numero = 0, q = null as null | (typeof v.definicao.topicos)[number]["questoes"][number];
-      for (const t of v.definicao.topicos) for (const x of t.questoes) { numero++; if (x.key === k) { q = x; break; } if (q) break; }
-      return { key: k, numero, titulo: q?.titulo ?? "Questão", resposta: i.respostas[k], questao: q, reincidente: !!i.resultado.questoes[k]?.reincidente };
+      const pos = todas.findIndex((x) => x.key === k);
+      const q = pos >= 0 ? todas[pos]! : null;
+      return { key: k, numero: pos + 1, titulo: q?.titulo ?? "Questão", resposta: i.respostas[k], questao: q, reincidente: !!i.resultado.questoes[k]?.reincidente };
     });
     return {
       plano: { ...clone(p), situacao: situacao(p, hojeNaOrg()) },

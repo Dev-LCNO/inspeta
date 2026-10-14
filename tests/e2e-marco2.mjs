@@ -136,6 +136,7 @@ passo("histórico de planos: 2 abertos");
 const resp = await pagina({ width: 390, height: 844 });
 await resp.goto(linkRetirada);
 await resp.getByText("Requeijão vencido em 10/10.", { exact: false }).waitFor();
+await resp.getByRole("heading", { name: /^1\. A área de venda está livre de produtos vencidos\?/ }).waitFor();
 await shot(resp, "S26-390");
 await resp.getByRole("button", { name: "Enviar respostas" }).click();
 await resp.getByText("Informe quem está respondendo.").waitFor();
@@ -154,7 +155,7 @@ await shot(resp, "S26-respondido-390");
 passo("responsável respondeu com foto, sem login; a página vira somente leitura");
 
 await web.reload();
-await web.getByText("1 abertos").or(web.getByText("1 aberto")).first().waitFor();
+await web.getByText("1 aberto ·", { exact: false }).waitFor();
 await web.getByRole("row", { name: /Retirada e descarte/ }).getByText("Finalizado").waitFor();
 passo("gestor vê o plano como finalizado");
 await web.getByRole("row", { name: /Retirada e descarte/ }).getByRole("button", { name: "Loja 01 — Bosque" }).click();

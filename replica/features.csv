@@ -6,8 +6,8 @@ Permissões por usuário (formulários/inspeções/avaliados),acesso,must,yes,pa
 Equipes,acesso,should,yes,no,S30
 Convidados externos,acesso,could,yes,no,S30
 Cadastro de avaliados,avaliados,must,yes,yes,S21 | S21
-Importar avaliados (planilha + mapeamento),avaliados,must,yes,no,S23
-Exportar avaliados,avaliados,could,yes,no,
+Importar avaliados (planilha + mapeamento),avaliados,must,yes,yes,"S23 | S23: .xlsx e .csv (inclui Windows-1252), sugestão de colunas, prévia, upsert por código — testado"
+Exportar avaliados,avaliados,could,yes,yes,CSV com ; e BOM (abre direto no Excel)
 Campos personalizados com dependência,avaliados,should,yes,no,S22
 Criar formulário em branco,formularios,must,yes,yes,S13 | S13
 Tópicos e questões,formularios,must,yes,yes,"S14 | S14: criar, ordenar, duplicar, excluir"
@@ -46,13 +46,13 @@ Detalhe da inspeção,inspecao,must,yes,yes,S12 | S12
 Log de edições (export Excel),inspecao,should,yes,partial,"exporta CSV, não .xlsx"
 Relatório PDF configurável,relatorios,must,yes,partial,S16 | PDF com fotos e assinatura no layout padrão; aba S16 no marco 2
 Relatório de não conformidades,relatorios,must,yes,yes,seção no PDF
-Envio automático de relatório por e-mail,relatorios,must,yes,no,
-Modelos de plano de ação,planos,must,yes,no,S25
-Disparo automático de plano na NC,planos,must,yes,no,
-Link público para responder plano,planos,must,yes,no,S26
-Status aberto/finalizado/em atraso,planos,must,yes,no,
-Reenviar e-mail do plano,planos,should,yes,no,
-Agrupar planos por inspeção ou por NC,planos,could,yes,no,
+Envio automático de relatório por e-mail,relatorios,must,yes,partial,fila idempotente + caixa de saída simulada; envio real entra com o backend (Resend)
+Modelos de plano de ação,planos,must,yes,yes,S25 | S25 reaproveita o editor de questões
+Disparo automático de plano na NC,planos,must,yes,yes,job pós-finalização idempotente — testado
+Link público para responder plano,planos,must,yes,yes,S26 | S26 sem login; banco guarda só o hash do token — testado
+Status aberto/finalizado/em atraso,planos,must,yes,yes,atraso derivado do prazo no fuso da org — testado
+Reenviar e-mail do plano,planos,should,yes,yes,gera link novo e invalida o anterior — testado
+Agrupar planos por inspeção ou por NC,planos,could,yes,yes,
 Aprovação de inspeção multi-etapa,aprovacao,should,yes,no,S32
 Aprovação de plano de ação,aprovacao,could,yes,no,
 Agendamento de inspeções com recorrência,agenda,should,yes,no,S06
