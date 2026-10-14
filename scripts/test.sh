@@ -11,10 +11,11 @@ echo "== build"
 ./scripts/build.sh
 
 echo "== ponta a ponta"
-PORT=4173
-(cd app/dist && python3 -m http.server $PORT >/dev/null 2>&1) & SRV=$!
-trap 'kill $SRV 2>/dev/null' EXIT
+PORT=4174
+python3 -m http.server $PORT -d app/dist >/dev/null 2>&1 & SRV=$!
+trap 'kill $SRV 2>/dev/null || true' EXIT
 sleep 1
 BASE="http://localhost:$PORT/" node tests/e2e-fatia.mjs | grep -v "web navegou"
 BASE="http://localhost:$PORT/" node tests/e2e-offline-pwa.mjs
+BASE="http://localhost:$PORT/" node tests/e2e-marco2.mjs
 echo "== tudo verde"

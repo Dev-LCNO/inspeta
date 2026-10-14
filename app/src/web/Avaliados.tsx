@@ -1,6 +1,8 @@
 // S21 — Avaliados · S22 Campos (marco 3) · S23 Importar (marco 2)
 import { useMemo, useState } from "react";
 import { server } from "../data/server";
+import { baixar } from "../pdf";
+import { gerarCsv } from "../planilha";
 import { fmt } from "../ui/format";
 import { useData } from "../ui/hooks";
 import { Icon } from "../ui/icons";
@@ -43,6 +45,10 @@ export function Avaliados() {
     <>
       <PageHeader title="Avaliados" desc="Lojas, setores, fornecedores ou docas que passam por inspeção."
         actions={<>
+          <Button variant="secondary" icon="download" disabled={!lista.data?.length} onClick={() => baixar(gerarCsv([
+            ["Nome", "Código", "CNPJ", "E-mail", "Telefone", "Endereço"],
+            ...(lista.data ?? []).map((a) => [a.nome, a.codigo_externo, a.documento, a.email, a.telefone, a.endereco]),
+          ]), "avaliados.csv", "text/csv;charset=utf-8")}>Exportar</Button>
           <ButtonLink to="/web/avaliados/importar" variant="secondary" icon="upload">Importar planilha</ButtonLink>
           <Button icon="plus" onClick={() => { setDados({ nome: "", codigo_externo: "", documento: "", email: "", endereco: "" }); setErro(null); setNovo(true); }}>Novo avaliado</Button>
         </>} />
@@ -67,9 +73,9 @@ export function Avaliados() {
               <div className="table-wrap">
                 <table className="table">
                   <caption className="sr-only">Avaliados</caption>
-                  <thead><tr><th>Nome</th><th>Código</th><th>Endereço</th><th>Cadastrado</th></tr></thead>
+                  <thead><tr><th>Nome</th><th>Código</th><th>E-mail</th><th>Endereço</th><th>Cadastrado</th></tr></thead>
                   <tbody>{filtrados.map((a) => (
-                    <tr key={a.id}><td style={{ fontWeight: 600 }}>{a.nome}</td><td className="mono">{a.codigo_externo ?? "—"}</td><td className="muted">{a.endereco ?? "—"}</td><td className="num muted">{fmt.data(a.created_at)}</td></tr>
+                    <tr key={a.id}><td style={{ fontWeight: 600 }}>{a.nome}</td><td className="mono">{a.codigo_externo ?? "—"}</td><td className="muted">{a.email ?? "—"}</td><td className="muted">{a.endereco ?? "—"}</td><td className="num muted">{fmt.data(a.created_at)}</td></tr>
                   ))}</tbody>
                 </table>
               </div>
@@ -79,7 +85,7 @@ export function Avaliados() {
 
       <Dialog open={novo} onClose={() => setNovo(false)} title="Novo avaliado"
         footer={<><Button variant="secondary" onClick={() => setNovo(false)}>Cancelar</Button><Button loading={salvando} onClick={criar}>Cadastrar</Button></>}>
-        <form className="stack" onSubmit={(e: { preventDefault(): void }) => { e.preventDefault(); void criar(); }}>
+        <form className="stack" noValidate onSubmit={(e: { preventDefault(): void }) => { e.preventDefault(); void criar(); }}>
           <TextField label="Nome" required value={dados.nome} onChange={(v) => setDados({ ...dados, nome: v })} error={erro} autoFocus />
           <div className="row" style={{ alignItems: "flex-start" }}>
             <div className="grow"><TextField label="Código" help="Código da loja no seu sistema" value={dados.codigo_externo} onChange={(v) => setDados({ ...dados, codigo_externo: v })} /></div>

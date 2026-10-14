@@ -169,7 +169,10 @@ export function InspecaoDetalhe({ me, id }: { me: Membro; id: string }) {
             <ol className="timeline">
               {eventos.map((e) => (
                 <li key={e.id}><span className="pt" aria-hidden="true" /><div>
-                  <div style={{ fontWeight: 600 }}>{{ criada: "Iniciada", sincronizada: "Sincronizada", finalizada: "Finalizada", editada: "Editada", reaberta: "Reaberta", relatorio_enviado: "Relatório gerado", excluida: "Excluída" }[e.acao]}</div>
+                  <div style={{ fontWeight: 600 }}>{e.acao === "relatorio_enviado" && Array.isArray(e.dados.para)
+                    ? `Relatório enviado por e-mail (${(e.dados.para as string[]).length})`
+                    : { criada: "Iniciada", sincronizada: "Sincronizada", finalizada: "Finalizada", editada: "Editada", reaberta: "Reaberta", relatorio_enviado: "Relatório gerado (PDF)", excluida: "Excluída" }[e.acao]}</div>
+                  {e.acao === "relatorio_enviado" && Array.isArray(e.dados.para) ? <div className="muted" style={{ fontSize: "var(--text-xs)" }}>{(e.dados.para as string[]).join(", ")}</div> : null}
                   <div className="muted num" style={{ fontSize: "var(--text-xs)" }}>{fmt.dataHoraCompleta(e.em)} · {server.membros().find((m) => m.id === e.membro_id)?.nome ?? "sistema"}</div>
                 </div></li>
               ))}

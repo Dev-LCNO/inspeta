@@ -165,7 +165,7 @@ function PlanoDialog({ me, p, onClose }: { me: Membro; p: Linha; onClose: () => 
           {link ? <div className="row" style={{ flexWrap: "nowrap" }}><input className="input mono grow" readOnly value={link} aria-label="Link do plano" onFocus={(e: { target: HTMLInputElement }) => e.target.select()} />
             <Button variant="secondary" icon="copy" label="Copiar link" onClick={() => { void navigator.clipboard.writeText(link).catch(() => undefined); toast({ tone: "info", text: "Link copiado." }); }} /></div> : null}
           <div><Button variant="secondary" icon="refresh" loading={ocupado === "link"} onClick={() => gerar(false)}>Gerar novo link</Button></div>
-          <form className="row" style={{ alignItems: "flex-end" }} onSubmit={(e: { preventDefault(): void }) => { e.preventDefault(); void gerar(true); }}>
+          <form className="row" noValidate style={{ alignItems: "flex-end" }} onSubmit={(e: { preventDefault(): void }) => { e.preventDefault(); void gerar(true); }}>
             <div className="grow"><TextField label="Reenviar por e-mail para" type="email" value={email} onChange={setEmail} /></div>
             <Button type="submit" icon="mail" loading={ocupado === "email"} disabled={!email.trim()}>Reenviar</Button>
           </form>

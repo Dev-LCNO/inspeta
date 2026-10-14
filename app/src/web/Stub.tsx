@@ -10,7 +10,6 @@ export const STUBS: Record<string, { id: string; titulo: string; marco: number; 
   "/web/funcoes": { id: "S31", titulo: "Funções", marco: 2, icon: "key", texto: "Cargos com as ações que cada um pode fazer: criar formulários, aplicar, editar, aprovar." },
   "/web/formularios/preconfiguradas": { id: "S19", titulo: "Questões pré-configuradas", marco: 4, icon: "copy", texto: "Biblioteca de questões reutilizáveis em vários formulários." },
   "/web/formularios/importar": { id: "S20", titulo: "Importar formulário", marco: 3, icon: "upload", texto: "Monte o formulário numa planilha modelo e importe." },
-  "/web/avaliados/importar": { id: "S23", titulo: "Importar avaliados", marco: 2, icon: "upload", texto: "Suba uma planilha, associe as colunas aos campos e importe de uma vez." },
 };
 
 export function Stub({ path }: { path: string }) {

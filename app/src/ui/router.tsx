@@ -15,6 +15,9 @@ export function useRoute(): Route {
   useEffect(() => {
     const h = () => { setR(read()); };
     window.addEventListener("hashchange", h);
+    // Efeitos de filhos rodam antes dos do pai: um <Redirect> pode ter trocado a URL
+    // antes deste listener existir. Relê a rota ao começar a escutar.
+    h();
     return () => window.removeEventListener("hashchange", h);
   }, []);
   return r;

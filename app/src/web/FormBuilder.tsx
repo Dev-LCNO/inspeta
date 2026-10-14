@@ -607,7 +607,7 @@ function AbaRelatorio({ def, edit }: { def: FormDefinition; edit: (fn: (d: FormD
               ))}
             </ul>
           ) : <span className="muted">Ninguém além do avaliado.</span>}
-          <form className="row" style={{ alignItems: "flex-end" }} onSubmit={(e: { preventDefault(): void }) => { e.preventDefault(); adicionar(); }}>
+          <form className="row" noValidate style={{ alignItems: "flex-end" }} onSubmit={(e: { preventDefault(): void }) => { e.preventDefault(); adicionar(); }}>
             <div className="grow"><TextField label="Adicionar e-mail" type="email" value={novo} onChange={(v) => { setNovo(v); setErro(null); }} error={erro} placeholder="qualidade@empresa.com.br" /></div>
             <Button type="submit" variant="secondary" icon="plus">Adicionar</Button>
           </form>

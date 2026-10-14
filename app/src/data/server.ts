@@ -404,7 +404,7 @@ export const server = {
       }))
       .filter((p) => (!filtro.situacao || p.situacao === filtro.situacao)
         && (!busca || [p.avaliado, p.modelo_snapshot.nome, p.responsavel_email, p.formulario].join(" ").toLowerCase().includes(busca)))
-      .sort((a, b) => b.created_at.localeCompare(a.created_at));
+      .sort((a, b) => b.created_at.localeCompare(a.created_at) || a.modelo_snapshot.nome.localeCompare(b.modelo_snapshot.nome, "pt-BR"));
   },
   async planosDaInspecao(inspecao_id: ID) {
     const s = await load();
@@ -565,9 +565,11 @@ async function sha256(t: string): Promise<string> {
 function linkPublico(token: string): string {
   return `${location.origin}${location.pathname}#/p/${token}`;
 }
-function filaEmail(s: State, e: Omit<EmailSaida, "id" | "criado_em" | "status">): void {
-  if (s.emails.some((x) => x.idem_key === e.idem_key)) return; // idem_key único (= emails_saida no schema)
+/** Devolve true se entrou na fila; false se já existia (idem_key único = emails_saida no schema). */
+function filaEmail(s: State, e: Omit<EmailSaida, "id" | "criado_em" | "status">): boolean {
+  if (s.emails.some((x) => x.idem_key === e.idem_key)) return false;
   s.emails.push({ ...e, id: uuid(), criado_em: nowISO(), status: e.para ? "enviado" : "sem_destinatario" });
+  return true;
 }
 function emailPlano(s: State, p: PlanoAcao, link: string, hash: string): Omit<EmailSaida, "id" | "criado_em" | "status"> {
   const av = s.avaliados.find((a) => a.id === p.avaliado_id)?.nome ?? "";
@@ -623,14 +625,16 @@ async function posFinalizacao(inspecao_id: ID): Promise<void> {
     if (cfg?.avaliado && av?.email) destinos.add(av.email);
     for (const e of cfg?.extras ?? []) if (e.trim()) destinos.add(e.trim());
     const form = s.formularios.find((f) => f.id === i.formulario_id)?.nome ?? "";
+    const novos: string[] = [];
     for (const para of destinos) {
-      filaEmail(s, {
+      const entrou = filaEmail(s, {
         idem_key: `relatorio:${i.id}:${para}`, para,
         assunto: `Relatório: ${form} — ${av?.nome ?? ""} — ${i.nota_pct === null ? "sem nota" : String(i.nota_pct).replace(".", ",") + "%"}`,
         texto: `Segue o relatório da inspeção finalizada em ${new Date(i.finalizada_em ?? i.iniciada_em).toLocaleString("pt-BR", { timeZone: ORG.fuso_horario })}. ${i.qtd_nao_conformidades} não conformidade(s).`,
         anexo: { tipo: "relatorio_pdf", inspecao_id: i.id },
       });
+      if (entrou) novos.push(para);
     }
-    if (destinos.size) log(s, i.id, null, "relatorio_enviado", { para: [...destinos] });
+    if (novos.length) log(s, i.id, null, "relatorio_enviado", { para: novos }); // reenvio não repete o evento
   });
 }

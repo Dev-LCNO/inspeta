@@ -125,7 +125,8 @@ function Pergunta({ q, a, pend, fotos, onAnswer, onFoto, onRemover }: {
   const ref = useRef<HTMLInputElement | null>(null);
   const [txt, setTxt] = useState(a?.numero == null ? "" : String(a.numero).replace(".", ","));
   const id = useId();
-  const faltaFoto = pend.some((p) => p.tipo === "foto");
+  // avisa a foto já na primeira tentativa, mesmo antes de a pergunta ter resposta
+  const faltaFoto = pend.some((p) => p.tipo === "foto") || (pend.length > 0 && !!q.foto_obrigatoria && fotos.length === 0);
   return (
     <fieldset className={"q" + (pend.length ? " pend" : "")}>
       <legend id={id} className="qt">{q.titulo}{q.obrigatoria ? <span className="req" aria-hidden="true"> *</span> : null}</legend>
