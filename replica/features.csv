@@ -12,23 +12,23 @@ Campos personalizados com dependência,avaliados,should,yes,no,S22
 Criar formulário em branco,formularios,must,yes,yes,S13 | S13
 Tópicos e questões,formularios,must,yes,yes,"S14 | S14: criar, ordenar, duplicar, excluir"
 Questão texto aberto (+ leitura de código),formularios,must,yes,partial,leitura por foto via BarcodeDetector; sem câmera ao vivo
-Questão numérica (formato/limites/incremento),formularios,must,yes,partial,"formato, unidade, limites, faixas; falta incremento"
+Questão numérica (formato/limites/incremento),formularios,must,yes,yes,"formato, unidade, limites, faixas e incremento com botões −/+"
 Questão escolha simples/múltipla (conformidade),formularios,must,yes,yes,
 Questão assinatura,formularios,must,yes,yes,M07
 Questão data/hora,formularios,should,yes,yes,
 Questão cálculo (fórmula [n]),formularios,should,yes,yes,"parser seguro, sem eval"
 Obrigatória / foto obrigatória / documento obrigatório,formularios,must,yes,partial,falta documento obrigatório
 Ajuda (texto/arquivo) na questão,formularios,should,yes,partial,"texto sim, arquivo não"
-Preenchimento automático (última resposta),formularios,should,yes,no,
-Preenchimento único,formularios,could,yes,no,
-Questão/tópico dependente,formularios,must,yes,partial,inclui entre tópicos | motor faz questão e tópico; editor só configura questão
+Preenchimento automático (última resposta),formularios,should,yes,yes,traz a última resposta do mesmo avaliado (sem fotos); aplicador confere
+Preenchimento único,formularios,could,yes,yes,repete a resposta conhecida travada; o servidor impõe o valor
+Questão/tópico dependente,formularios,must,yes,yes,questão e tópico; editor configura os dois
 Notas por opção e faixas numéricas,notas,must,yes,yes,S18 | S18 no painel lateral
 Desconto % no tópico/formulário,notas,should,yes,yes,ex-nocaute
 Classificações coloridas da nota,notas,must,yes,yes,S15 | S15
 Ocultar nota durante aplicação,notas,could,yes,yes,
 Versionamento de formulário,formularios,must,yes,yes,congelar versão na inspeção | versão imutável; inspeção presa à versão — testado
 Documento de referência,formularios,could,yes,no,
-Captura de geolocalização,formularios,should,yes,no,início/fim
+Captura de geolocalização,formularios,should,yes,yes,"início, fim ou ambos, com precisão; nunca trava a inspeção; link para o mapa no S12"
 Preenchimento sequencial,formularios,could,yes,yes,M11 | M11 'Aplicar de novo'
 Questões pré-configuradas (biblioteca),formularios,could,yes,no,S19
 Importar formulário via Excel,formularios,should,yes,no,S20

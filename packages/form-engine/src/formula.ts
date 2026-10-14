@@ -102,3 +102,28 @@ export function evaluate(src: string, resolve: (n: number) => number | null): nu
   if (!Number.isFinite(v)) return null; // divisão por zero
   return v;
 }
+
+/**
+ * Fórmulas citam questões pelo número ([3]). Inserir, mover ou excluir questões muda a numeração;
+ * esta função reescreve as referências de `depois` para continuarem apontando para as mesmas questões
+ * de `antes`. Referência a questão excluída vira [?], para a validação acusar em vez de apontar para outra.
+ */
+export function renumerarFormulas(
+  antes: { topicos: { questoes: { key: string }[] }[] },
+  depois: { topicos: { questoes: { key: string; calculo?: { formula: string } }[] }[] },
+): number {
+  const chaveDoNumero = new Map(antes.topicos.flatMap((t) => t.questoes).map((q, i) => [i + 1, q.key] as const));
+  const numeroDaChave = new Map(depois.topicos.flatMap((t) => t.questoes).map((q, i) => [q.key, i + 1] as const));
+  let mudou = 0;
+  for (const q of depois.topicos.flatMap((t) => t.questoes)) {
+    if (!q.calculo?.formula) continue;
+    const nova = q.calculo.formula.replace(/\[(\d+)\]/g, (m, n: string) => {
+      const k = chaveDoNumero.get(Number(n));
+      if (!k) return m;
+      const novo = numeroDaChave.get(k);
+      return novo ? `[${novo}]` : "[?]";
+    });
+    if (nova !== q.calculo.formula) { q.calculo.formula = nova; mudou++; }
+  }
+  return mudou;
+}

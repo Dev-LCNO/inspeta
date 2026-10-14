@@ -1,7 +1,7 @@
 // S14 Editor (Questões) · S15 Configurações · S16 Relatório (marco 2) · S17 Avaliados · S18 notas por questão
 import { useEffect, useMemo, useRef, useState } from "react";
 import {
-  evaluateFormula, formulaReferences, index as indexDef, validateDefinition,
+  evaluateFormula, formulaReferences, index as indexDef, renumerarFormulas, validateDefinition,
   type DefinitionIssue, type FormDefinition, type Option, type Question, type QuestionType, type Topic,
 } from "@app/form-engine";
 import { pode, server } from "../data/server";
@@ -101,6 +101,7 @@ export function FormBuilder({ me, id }: { me: Membro; id: string }) {
   const edit = (fn: (d: FormDefinition) => void) => {
     const d = structuredClone(def);
     fn(d);
+    renumerarFormulas(def, d); // inserir/mover questões não pode quebrar [n] das fórmulas
     dirty.current = true;
     setProblemas(null);
     setForm({ ...form, rascunho: d });
@@ -241,7 +242,7 @@ export function AbaQuestoes({ def, edit, sel, setSel, planos, tipos }: {
               <Button variant="ghost" size="sm" icon="trash" label="Excluir tópico" disabled={def.topicos.length === 1}
                 onClick={() => { if (confirm(`Excluir o tópico "${t.titulo}" e suas ${t.questoes.length} questões?`)) edit((d) => { d.topicos.splice(ti, 1); }); }} />
             </div>
-            {t.depende_de ? <span className="muted" style={{ fontSize: "var(--text-xs)" }}>Aparece só quando a questão {idx.questions.get(t.depende_de.questao)?.numero ?? "?"} tiver a opção escolhida.</span> : null}
+            <CondicaoTopico def={def} ti={ti} edit={edit} numero={(k) => idx.questions.get(k)?.numero} />
             {t.questoes.map((q) => {
               const n = idx.questions.get(q.key)!.numero;
               const ativo = sel === q.key;
@@ -414,6 +415,10 @@ function PainelQuestao({ q, numero, topic, idx, choiceQs, set, planos, tipos }: 
         <div className="label" style={{ marginBottom: 2 }}>Regras</div>
         {q.tipo !== "calculo" ? <Switch label="Obrigatória" desc="O aplicador não finaliza sem responder." checked={!!q.obrigatoria} onChange={(v) => setQ({ obrigatoria: v })} /> : null}
         {q.tipo !== "calculo" && q.tipo !== "assinatura" ? <Switch label="Foto obrigatória" desc="Exige pelo menos uma foto em qualquer resposta." checked={!!q.foto_obrigatoria} onChange={(v) => setQ({ foto_obrigatoria: v })} /> : null}
+        {q.tipo !== "calculo" && q.tipo !== "assinatura" ? <Switch label="Preencher com a última resposta" desc="O app já traz o que foi respondido na inspeção anterior do mesmo avaliado; o aplicador confirma ou muda."
+          checked={!!q.preenchimento_automatico} onChange={(v) => setQ({ preenchimento_automatico: v, preenchimento_unico: v ? false : q.preenchimento_unico })} /> : null}
+        {q.tipo !== "calculo" && q.tipo !== "assinatura" ? <Switch label="Responder uma vez por avaliado" desc="Depois da primeira resposta, as próximas inspeções do avaliado repetem o valor e não deixam mudar (ex.: CNPJ, área da loja)."
+          checked={!!q.preenchimento_unico} onChange={(v) => setQ({ preenchimento_unico: v, preenchimento_automatico: v ? false : q.preenchimento_automatico })} /> : null}
         <Switch label="Texto de ajuda" desc="Aparece no botão de ajuda da questão, no app." checked={q.ajuda !== undefined} onChange={(v) => setQ({ ajuda: v ? { texto: "" } : undefined })} />
         {q.ajuda !== undefined ? <TextField label="Ajuda" value={q.ajuda.texto ?? ""} onChange={(v) => setQ({ ajuda: { texto: v } })} multiline rows={2} /> : null}
         <Switch label="Mostrar só sob condição" desc="A questão aparece apenas quando outra resposta for escolhida." checked={!!q.depende_de}
@@ -455,6 +460,8 @@ function PainelNumerica({ q, set }: { q: Question; set: (fn: (q: Question) => vo
             <option value="decimal">Decimal</option><option value="inteiro">Inteiro</option><option value="percentual">Percentual</option>
           </select></div>
         <div className="grow"><TextField label="Unidade" value={n.unidade ?? ""} onChange={(v) => setN({ unidade: v || undefined })} placeholder="°C, kg, un" /></div>
+        <div style={{ width: 110 }}><TextField label="Incremento" help="Botões − e +" value={numTxt(n.incremento)} inputMode="decimal"
+          onChange={(v) => { const x = parseNumero(v); setN({ incremento: x && x > 0 ? x : null }); }} placeholder="0,5" /></div>
       </div>
       <div className="label">Limite de conformidade</div>
       <div className="row">
@@ -544,10 +551,42 @@ function AbaConfig({ def, edit }: { def: FormDefinition; edit: (fn: (d: FormDefi
           </select>
         </div>
         <div className="toggle-row">
-          <div><span className="t">Localização do aplicador</span><div className="d">Chega no marco 3.</div></div>
-          <Badge tone="na">M3</Badge>
+          <div><label className="t" htmlFor="geo">Localização do aplicador</label><div className="d">O app pede o GPS do celular. Se a pessoa negar ou não houver sinal, a inspeção segue sem localização.</div></div>
+          <select id="geo" className="select" style={{ width: 170 }} value={c.geo ?? "off"} onChange={(e: { target: { value: string } }) => set({ geo: e.target.value as "off" })}>
+            <option value="off">Não registrar</option><option value="inicio">No início</option><option value="fim">Ao finalizar</option><option value="inicio_fim">No início e ao finalizar</option>
+          </select>
         </div>
       </section>
+    </div>
+  );
+}
+
+/** Tópico condicional: só aparece quando uma questão de escolha de outro tópico tiver a opção marcada. */
+function CondicaoTopico({ def, ti, edit, numero }: { def: FormDefinition; ti: number; edit: (fn: (d: FormDefinition) => void) => void; numero: (k: string) => number | undefined }) {
+  const t = def.topicos[ti]!;
+  const candidatas = def.topicos.filter((_, k) => k !== ti).flatMap((x) => x.questoes)
+    .filter((q) => (q.tipo === "escolha_simples" || q.tipo === "escolha_multipla") && q.opcoes?.length);
+  const dep = t.depende_de;
+  const q = dep ? candidatas.find((x) => x.key === dep.questao) : undefined;
+  const setDep = (d: typeof dep) => edit((x) => { if (d) x.topicos[ti]!.depende_de = d; else delete x.topicos[ti]!.depende_de; });
+  if (!dep) {
+    return candidatas.length
+      ? <div><Button variant="ghost" size="sm" icon="flow" onClick={() => setDep({ questao: candidatas[0]!.key, opcao: candidatas[0]!.opcoes![0]!.key })}>Mostrar este tópico só sob condição</Button></div>
+      : null;
+  }
+  return (
+    <div className="row" style={{ gap: 6, fontSize: "var(--text-sm)" }} role="group" aria-label={`Condição do tópico ${t.titulo}`}>
+      <Icon n="flow" size="sm" /><span className="muted">Aparece só quando</span>
+      <select className="select" style={{ width: "auto", height: 34, maxWidth: 260 }} aria-label="Questão que libera o tópico" value={dep.questao}
+        onChange={(e: { target: { value: string } }) => { const nq = candidatas.find((x) => x.key === e.target.value)!; setDep({ questao: nq.key, opcao: nq.opcoes![0]!.key }); }}>
+        {candidatas.map((c) => <option key={c.key} value={c.key}>{numero(c.key)}. {c.titulo || "Questão sem título"}</option>)}
+      </select>
+      <span className="muted">for</span>
+      <select className="select" style={{ width: "auto", height: 34 }} aria-label="Opção que libera o tópico" value={dep.opcao}
+        onChange={(e: { target: { value: string } }) => setDep({ questao: dep.questao, opcao: e.target.value })}>
+        {(q?.opcoes ?? []).map((o) => <option key={o.key} value={o.key}>{o.texto}</option>)}
+      </select>
+      <Button variant="ghost" size="sm" icon="x" label="Tirar condição do tópico" onClick={() => setDep(undefined)} />
     </div>
   );
 }

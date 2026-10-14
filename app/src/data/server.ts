@@ -124,6 +124,24 @@ function anteriores(s: State, formulario_id: ID, avaliado_id: ID, excetoClient?:
   return out;
 }
 
+/** Questões que trazem a última resposta (automático) ou repetem a primeira (único). */
+function questoesPreenchidas(def: FormDefinition) {
+  return def.topicos.flatMap((t) => t.questoes).filter((q) => q.preenchimento_automatico || q.preenchimento_unico);
+}
+/** Última resposta conhecida de cada questão marcada, sem janela de tempo. Fotos e assinatura não são copiadas. */
+function ultimasRespostas(s: State, def: FormDefinition, formulario_id: ID, avaliado_id: ID, excetoClient?: string): Answers {
+  const qs = questoesPreenchidas(def);
+  if (!qs.length) return {};
+  const out: Answers = {};
+  const hist = s.inspecoes.filter((i) => i.formulario_id === formulario_id && i.avaliado_id === avaliado_id && i.status !== "rascunho" && i.client_uuid !== excetoClient)
+    .sort((a, b) => (b.finalizada_em ?? "").localeCompare(a.finalizada_em ?? ""));
+  for (const q of qs) {
+    const r = hist.find((i) => { const a = i.respostas[q.key]; return a && (a.opcoes?.length || a.numero != null || a.texto || a.data || a.na); })?.respostas[q.key];
+    if (r) out[q.key] = { opcoes: r.opcoes, numero: r.numero, texto: r.texto, data: r.data, na: r.na };
+  }
+  return out;
+}
+
 /** Regra de servidor: grava/atualiza por client_uuid e recalcula com o form-engine. */
 function processar(s: State, m: Membro, e: InspecaoEnvio, agora = nowISO()): ResultadoEnvio {
   const versao = s.versoes.find((v) => v.id === e.formulario_versao_id && v.formulario_id === e.formulario_id);
@@ -141,6 +159,11 @@ function processar(s: State, m: Membro, e: InspecaoEnvio, agora = nowISO()): Res
     }
   }
 
+  // "responder uma vez por avaliado": o servidor impõe o valor já conhecido, mesmo que o aparelho mande outro
+  const fixas = ultimasRespostas(s, versao.definicao, e.formulario_id, e.avaliado_id, e.client_uuid);
+  for (const q of questoesPreenchidas(versao.definicao)) {
+    if (q.preenchimento_unico && fixas[q.key]) e = { ...e, respostas: { ...e.respostas, [q.key]: { ...e.respostas[q.key], ...fixas[q.key] } } };
+  }
   const prev = anteriores(s, e.formulario_id, e.avaliado_id, e.client_uuid);
   const ev = evaluateForm(versao.definicao, e.respostas, prev);
   if (e.status === "completa" && ev.pendentes.length)
@@ -389,7 +412,12 @@ export const server = {
         return [{ id: o.id, formulario_id: a.formulario_id, avaliado_id: a.avaliado_id, previsto_em: o.previsto_em, dia_inteiro: a.dia_inteiro, limite: limiteDaOcorrencia(o.previsto_em, a), descricao: descreverRegra(a) }];
       })
       .sort((x, y) => x.previsto_em.localeCompare(y.previsto_em));
-    return { cursor: nowISO(), membro: m, org: ORG, formularios, avaliados, anteriores: anterioresMap, agenda };
+    const ultimas: Record<string, Answers> = {};
+    for (const f of formularios) for (const a of avaliados) {
+      const u = ultimasRespostas(s, f.versao.definicao, f.formulario_id, a.id);
+      if (Object.keys(u).length) ultimas[`${f.formulario_id}|${a.id}`] = u;
+    }
+    return { cursor: nowISO(), membro: m, org: ORG, formularios, avaliados, anteriores: anterioresMap, ultimas, agenda };
   },
   async enviarAnexo(membroId: ID, client_uuid: string, dataUrl: string): Promise<void> {
     requireOnline();

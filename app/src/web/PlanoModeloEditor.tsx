@@ -1,6 +1,6 @@
 // S25 — Editor de modelo de plano de ação (reaproveita o editor de questões do S14)
 import { useEffect, useState } from "react";
-import type { FormDefinition } from "@app/form-engine";
+import { renumerarFormulas, type FormDefinition } from "@app/form-engine";
 import { server } from "../data/server";
 import type { PlanoModelo } from "../data/types";
 import { useData } from "../ui/hooks";
@@ -19,7 +19,7 @@ export function PlanoModeloEditor({ id }: { id: string }) {
   if (d.status === "error") return <ErrorState error={d.error} onRetry={d.reload} />;
   if (!m) return <div className="stack"><SkeletonBlock h={60} /><SkeletonBlock h={300} /></div>;
   const set = (patch: Partial<PlanoModelo>) => { setM({ ...m, ...patch }); setSujo(true); };
-  const edit = (fn: (x: FormDefinition) => void) => { const c = structuredClone(m.definicao); fn(c); set({ definicao: c }); };
+  const edit = (fn: (x: FormDefinition) => void) => { const c = structuredClone(m.definicao); fn(c); renumerarFormulas(m.definicao, c); set({ definicao: c }); };
 
   async function salvar() {
     setSalvando(true);

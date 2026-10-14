@@ -111,7 +111,7 @@ export function Aplicar({ me, clientUuid }: { me: Membro; clientUuid: string }) 
             if (!res.visivel) return null;
             return (
               <QuestionCard key={q.key} q={q} numero={res.numero} answer={ins.respostas[q.key]} res={res}
-                anterior={anteriores[q.key]} mostrarErros={mostrarErros} fotos={ins.fotos.filter((f) => f.questao_key === q.key)}
+                anterior={anteriores[q.key]} preenchida={ins.preenchidas?.[q.key]} mostrarErros={mostrarErros} fotos={ins.fotos.filter((f) => f.questao_key === q.key)}
                 onAnswer={(p) => responder(q.key, p)}
                 onFoto={async (files, tipo) => {
                   try {
@@ -209,9 +209,9 @@ function Revisao({ ev, insp, topicosVis, irPara }: { ev: Evaluation; insp: Inspe
 }
 
 // ---------------------------------------------------------------------------
-function QuestionCard({ q, numero, answer, res, anterior, mostrarErros, fotos, onAnswer, onFoto, onRemoverFoto }: {
+function QuestionCard({ q, numero, answer, res, anterior, preenchida, mostrarErros, fotos, onAnswer, onFoto, onRemoverFoto }: {
   q: Question; numero: number; answer: Answer | undefined; res: Evaluation["questoes"][string];
-  anterior?: { conforme: boolean | null }; mostrarErros: boolean; fotos: FotoLocal[];
+  anterior?: { conforme: boolean | null }; preenchida?: "auto" | "unico"; mostrarErros: boolean; fotos: FotoLocal[];
   onAnswer: (p: Partial<Answer> | null) => void;
   onFoto: (files: Blob[], tipo: "foto" | "assinatura") => Promise<void>;
   onRemoverFoto: (id: string) => Promise<void>;
@@ -232,8 +232,10 @@ function QuestionCard({ q, numero, answer, res, anterior, mostrarErros, fotos, o
   const legendId = "ql-" + q.key;
 
   return (
-    <fieldset className={"q" + (nc ? " nc" : destacarPend ? " pend" : "")} aria-describedby={pend.length ? legendId + "-p" : undefined}>
+    <fieldset className={"q" + (nc ? " nc" : destacarPend ? " pend" : "")} aria-describedby={pend.length ? legendId + "-p" : undefined} disabled={preenchida === "unico"}>
       <legend id={legendId} className="qt"><span className="qn">{numero}</span><span>{q.titulo}{q.obrigatoria ? <span className="req" aria-hidden="true"> *</span> : null}{q.obrigatoria ? <span className="sr-only"> (obrigatória)</span> : null}</span></legend>
+      {preenchida ? <div className="prefill" data-testid={"prefill-" + q.key}><Icon n={preenchida === "unico" ? "key" : "history"} size="sm" />
+        {preenchida === "unico" ? "Respondida uma vez para este avaliado. Não muda." : "Veio da última inspeção deste avaliado. Confira e mude se for preciso."}</div> : null}
       <Reincidencia anterior={anterior} res={res} q={q} />
 
       {q.tipo === "escolha_simples" || q.tipo === "escolha_multipla" ? <Opcoes q={q} answer={answer} onAnswer={onAnswer} legendId={legendId} /> : null}
@@ -358,9 +360,17 @@ function Numerica({ q, answer, onAnswer, legendId }: { q: Question; answer?: Ans
     ? lim.min != null && lim.max != null ? `entre ${fmt.num(lim.min)} e ${fmt.num(lim.max)}` : lim.min != null ? `a partir de ${fmt.num(lim.min)}` : `até ${fmt.num(lim.max)}`
     : null;
   const un = q.numerica?.unidade ?? "";
+  const inc = q.numerica?.incremento ?? null;
+  const casas = inc ? Math.min(4, (String(inc).split(".")[1] ?? "").length) : 0;
+  function passo(d: number) {
+    const n = Math.round(((v ?? 0) + d * inc!) * 10 ** casas) / 10 ** casas;
+    setTxt(String(n).replace(".", ","));
+    onAnswer({ numero: q.numerica?.formato === "inteiro" ? Math.round(n) : n });
+  }
   return (
     <>
       <div className="numrow">
+        {inc ? <Button variant="secondary" size="xl" icon="minus" label={`Diminuir ${fmt.num(inc)}`} onClick={() => passo(-1)} /> : null}
         <input className={"numin" + (dentro === true ? " in" : dentro === false ? " out" : "")} inputMode={q.numerica?.formato === "inteiro" ? "numeric" : "decimal"}
           aria-labelledby={legendId} aria-describedby={legendId + "-lim"} value={txt} placeholder="0"
           onChange={(e: { target: { value: string } }) => {
@@ -370,6 +380,7 @@ function Numerica({ q, answer, onAnswer, legendId }: { q: Question; answer?: Ans
             onAnswer(n === null ? { numero: undefined } : { numero: q.numerica?.formato === "inteiro" ? Math.round(n) : n });
           }} />
         {un ? <span className="unit">{un}</span> : null}
+        {inc ? <Button variant="secondary" size="xl" icon="plus" label={`Aumentar ${fmt.num(inc)}`} onClick={() => passo(1)} /> : null}
       </div>
       <div id={legendId + "-lim"} aria-live="polite" className={"lim " + (dentro === true ? "in" : dentro === false ? "out" : "neutral")}>
         {dentro === true ? <><Icon n="check" size="sm" />Dentro do limite ({faixa} {un})</>

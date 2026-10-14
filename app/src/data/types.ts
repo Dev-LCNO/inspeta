@@ -2,6 +2,8 @@
 import type { Answers, Evaluation, FormDefinition } from "@app/form-engine";
 
 export type ID = string;
+/** posição capturada no aparelho; precisão em metros quando o GPS informa */
+export interface Geo { lat: number; lng: number; precisao_m?: number }
 export type ISO = string; // timestamptz em UTC
 
 export type Acao =
@@ -113,8 +115,8 @@ export interface Inspecao {
   status: InspecaoStatus;
   iniciada_em: ISO;
   finalizada_em: ISO | null;
-  geo_inicio?: { lat: number; lng: number } | null;
-  geo_fim?: { lat: number; lng: number } | null;
+  geo_inicio?: Geo | null;
+  geo_fim?: Geo | null;
   respostas: Answers;
   anexos: AnexoMeta[];
   /** ocorrência de agendamento que esta inspeção cumpriu (null = avulsa) */
@@ -232,6 +234,8 @@ export interface PacoteSync {
   avaliados: Avaliado[];
   /** "formulario_id|avaliado_id" -> questao_key -> última resposta conhecida */
   anteriores: Record<string, Record<string, { conforme: boolean | null; resposta?: Answers[string] }>>;
+  /** "formulario_id|avaliado_id" -> questao_key -> última resposta (só para questões com preenchimento automático/único) */
+  ultimas?: Record<string, Answers>;
   /** ocorrências pendentes da pessoa (últimos 7 dias + próximos 14) */
   agenda?: OcorrenciaPacote[];
 }
@@ -244,8 +248,8 @@ export interface InspecaoEnvio {
   status: "rascunho" | "completa";
   iniciada_em: ISO;
   finalizada_em: ISO | null;
-  geo_inicio?: { lat: number; lng: number } | null;
-  geo_fim?: { lat: number; lng: number } | null;
+  geo_inicio?: Geo | null;
+  geo_fim?: Geo | null;
   respostas: Answers;
   anexos: AnexoMeta[];
   device_id: string;

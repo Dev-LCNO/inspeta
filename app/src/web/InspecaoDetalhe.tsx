@@ -152,6 +152,10 @@ export function InspecaoDetalhe({ me, id }: { me: Membro; id: string }) {
               <dt>Aparelho</dt><dd className="mono">{i.device_id ?? "—"}</dd>
               <dt>Sincronizada</dt><dd className="num">{fmt.dataHoraCompleta(i.sincronizada_em)}</dd>
               {avaliado.endereco ? <><dt>Endereço</dt><dd>{avaliado.endereco}</dd></> : null}
+              {def.config.geo && def.config.geo !== "off" ? <>
+                {def.config.geo !== "fim" ? <><dt>Local no início</dt><dd><Local g={i.geo_inicio} /></dd></> : null}
+                {def.config.geo !== "inicio" ? <><dt>Local no fim</dt><dd><Local g={i.geo_fim} /></dd></> : null}
+              </> : null}
             </dl>
           </section>
           {aprovacao.length ? <CartaoAprovacao me={me} inspecaoId={i.id} responsavelId={i.responsavel_id} etapas={aprovacao} /> : null}
@@ -247,5 +251,15 @@ function CartaoAprovacao({ me, inspecaoId, responsavelId, etapas }: { me: Membro
         </form>
       </Dialog>
     </section>
+  );
+}
+
+function Local({ g }: { g?: { lat: number; lng: number; precisao_m?: number } | null }) {
+  if (!g) return <span className="muted">não registrado</span>;
+  const txt = `${g.lat.toFixed(5).replace(".", ",")}; ${g.lng.toFixed(5).replace(".", ",")}`;
+  return (
+    <a href={`https://www.openstreetmap.org/?mlat=${g.lat}&mlon=${g.lng}#map=18/${g.lat}/${g.lng}`} target="_blank" rel="noreferrer" className="num">
+      {txt}{g.precisao_m ? ` (±${g.precisao_m} m)` : ""}
+    </a>
   );
 }

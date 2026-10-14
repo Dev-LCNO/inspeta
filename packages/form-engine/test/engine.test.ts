@@ -254,3 +254,16 @@ test("validação: etapa de aprovação sem aprovador", () => {
   assert.equal(issues.length, 1);
   assert.match(issues[0]!.onde, /etapa 2/);
 });
+
+test("renumerarFormulas: inserir e mover questões mantém as referências", async () => {
+  const { renumerarFormulas } = await import("../src/formula");
+  const antes = { topicos: [{ questoes: [{ key: "a" }, { key: "b" }, { key: "c", calculo: { formula: "[1] - [2] * 2" } }] }] };
+  const depois = { topicos: [{ questoes: [{ key: "novo" }, { key: "b" }, { key: "a" }, { key: "c", calculo: { formula: "[1] - [2] * 2" } }] }] };
+  assert.equal(renumerarFormulas(antes, depois), 1);
+  assert.equal(depois.topicos[0]!.questoes[3]!.calculo!.formula, "[3] - [2] * 2");
+  const sem = { topicos: [{ questoes: [{ key: "b" }, { key: "c", calculo: { formula: "[1] + [2]" } }] }] };
+  renumerarFormulas(antes, sem);
+  assert.equal(sem.topicos[0]!.questoes[1]!.calculo!.formula, "[?] + [1]"); // a excluída vira [?]; b passa a ser [1]
+  assert.ok(validateDefinition({ config: {}, topicos: [{ key: "t", titulo: "T", questoes: [
+    { key: "b", titulo: "B", tipo: "numerica" }, { key: "c", titulo: "C", tipo: "calculo", calculo: { formula: "[?] + [1]" } }] }] }).length > 0);
+});

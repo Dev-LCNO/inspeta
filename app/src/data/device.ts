@@ -10,7 +10,7 @@ import { evaluateForm, type Answer, type Evaluation, type FormDefinition } from 
 import { emitChange, kv, onChange, serial } from "./kv";
 import { net } from "./net";
 import { server } from "./server";
-import { OfflineError, type AnexoMeta, type ID, type InspecaoEnvio, type PacoteFormulario, type PacoteSync } from "./types";
+import { OfflineError, type Geo, type AnexoMeta, type ID, type InspecaoEnvio, type PacoteFormulario, type PacoteSync } from "./types";
 
 export type EstadoLocal = "rascunho" | "na_fila" | "enviando" | "enviada" | "erro";
 
@@ -27,6 +27,8 @@ export interface InspecaoLocal extends InspecaoEnvio {
   /** definição congelada da versão em que a inspeção começou (publicar de novo não muda esta inspeção) */
   definicao: FormDefinition;
   nome_formulario: string;
+  /** questões que já nasceram respondidas: "auto" (confira) ou "unico" (travada) */
+  preenchidas?: Record<string, "auto" | "unico">;
 }
 
 export interface EstadoAparelho {
@@ -86,7 +88,22 @@ export function avaliar(s: EstadoAparelho, i: InspecaoLocal): Evaluation {
   return evaluateForm(i.definicao, i.respostas, s.pacote?.anteriores[`${i.formulario_id}|${i.avaliado_id}`] ?? {});
 }
 
+/** Posição atual, ou null se negada/indisponível/demorou. Nunca trava a inspeção. */
+export function lerPosicao(timeoutMs = 8000): Promise<{ lat: number; lng: number; precisao_m?: number } | null> {
+  if (typeof navigator === "undefined" || !navigator.geolocation) return Promise.resolve(null);
+  return new Promise((res) => {
+    const t = setTimeout(() => res(null), timeoutMs + 500);
+    navigator.geolocation.getCurrentPosition(
+      (p) => { clearTimeout(t); res({ lat: Math.round(p.coords.latitude * 1e6) / 1e6, lng: Math.round(p.coords.longitude * 1e6) / 1e6, precisao_m: Math.round(p.coords.accuracy) }); },
+      () => { clearTimeout(t); res(null); },
+      { enableHighAccuracy: true, timeout: timeoutMs, maximumAge: 60000 },
+    );
+  });
+}
+const pedeGeo = (def: FormDefinition, quando: "inicio" | "fim") => def.config.geo === quando || def.config.geo === "inicio_fim";
+
 let syncing: Promise<ResumoSync> | null = null;
+let deNovo = false;
 export interface ResumoSync { enviadas: number; fotos: number; erros: number; offline: boolean; mensagem: string }
 
 export const device = {
@@ -102,8 +119,19 @@ export const device = {
         device_id: s.device_id, estado: "rascunho", fotos: [], atualizada_em: nowISO(),
         definicao: f.versao.definicao, nome_formulario: f.nome, ocorrencia_id,
       };
+      const ult = s.pacote?.ultimas?.[`${formulario_id}|${avaliado_id}`] ?? {};
+      for (const q of f.versao.definicao.topicos.flatMap((t) => t.questoes)) {
+        const a = ult[q.key];
+        if (!a || !(q.preenchimento_automatico || q.preenchimento_unico)) continue;
+        i.respostas[q.key] = structuredClone(a);
+        (i.preenchidas ??= {})[q.key] = q.preenchimento_unico ? "unico" : "auto";
+      }
       s.inspecoes.unshift(i);
       return structuredClone(i);
+    }).then((i) => {
+      // localização do início: em segundo plano, a inspeção já começou
+      if (pedeGeo(i.definicao, "inicio")) void lerPosicao().then((g) => g && mutate(membroId, (s) => { const x = s.inspecoes.find((y) => y.client_uuid === i.client_uuid); if (x) x.geo_inicio = g; }));
+      return i;
     });
   },
 
@@ -158,7 +186,11 @@ export const device = {
     return kv.get<string>(fotoKey(foto_uuid));
   },
 
-  async finalizar(membroId: ID, client_uuid: string, geo?: { lat: number; lng: number } | null): Promise<{ ok: true } | { ok: false; pendentes: string[] }> {
+  async finalizar(membroId: ID, client_uuid: string, geo?: Geo | null): Promise<{ ok: true } | { ok: false; pendentes: string[] }> {
+    if (geo === undefined) {
+      const atual = (await load(membroId)).inspecoes.find((x) => x.client_uuid === client_uuid);
+      geo = atual && pedeGeo(atual.definicao, "fim") && !avaliar(await load(membroId), atual).pendentes.length ? await lerPosicao() : null;
+    }
     const res = await mutate(membroId, (s) => {
       const i = find(s, client_uuid);
       editavel(i);
@@ -185,8 +217,25 @@ export const device = {
   },
 
   /** Uma sincronização por vez; chamadas concorrentes recebem a mesma promessa. */
+  /**
+   * Um sync por vez. Pedido que chega com outro em andamento (ex.: finalizar enquanto o sync de abertura
+   * ainda roda) não pode se perder: marca uma nova passada, que roda assim que a atual termina.
+   */
   sincronizar(membroId: ID): Promise<ResumoSync> {
-    if (!syncing) syncing = executarSync(membroId).finally(() => { syncing = null; });
+    if (syncing) { deNovo = true; return syncing; } // a passada em andamento repete antes de resolver
+    syncing = (async () => {
+      let r: ResumoSync;
+      let enviadas = 0, fotos = 0;
+      do {
+        deNovo = false;
+        r = await executarSync(membroId);
+        enviadas += r.enviadas; fotos += r.fotos;
+      } while (deNovo && !r.offline);
+      if (enviadas !== r.enviadas && !r.offline && !r.erros) { // soma as passadas no resumo que a tela mostra
+        r = { ...r, enviadas, fotos, mensagem: `${enviadas} ${enviadas === 1 ? "inspeção enviada" : "inspeções enviadas"}` };
+      }
+      return r;
+    })().finally(() => { syncing = null; });
     return syncing;
   },
 };

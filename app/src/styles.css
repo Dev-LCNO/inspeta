@@ -408,3 +408,5 @@ fieldset.group > legend { font-weight: 600; padding: 0; margin-bottom: var(--spa
 .etapas li.atual .n { background: var(--c-accent-soft); color: var(--c-accent); outline: 2px solid var(--c-accent); }
 .etapas li.aprovada .n { background: var(--c-success-soft); color: var(--c-success); }
 .etapas li.reprovada .n { background: var(--c-danger-soft); color: var(--c-danger); }
+.prefill { display: flex; gap: 6px; align-items: center; font-size: var(--text-xs); color: var(--c-text-muted); background: var(--c-surface); border-radius: var(--radius-sm); padding: 4px var(--space-2); margin-bottom: var(--space-2); }
+fieldset.q[disabled] .opt, fieldset.q[disabled] .numin, fieldset.q[disabled] textarea { opacity: .75; cursor: not-allowed; }

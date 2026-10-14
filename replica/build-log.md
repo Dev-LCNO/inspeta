@@ -115,3 +115,14 @@ Suíte inteira: 30 de unidade + 88 ponta a ponta, verde.
 2. Gráfico de barras: largura achatada pela regra global `.bar`.
 3. Tabela do painel estourava a largura no celular (390 px).
 4. "+0 pts vs. anterior" → "igual à anterior"; diferença de nota em p.p.
+
+### Marco 3 (complemento) · 14/10/2026
+Preenchimento automático e único, incremento numérico, geolocalização no início/fim e tópico condicional no editor.
+Teste: `tests/e2e-campo-extra.mjs` (7). Suíte: 31 de unidade + 95 ponta a ponta.
+**Matriz:** must 24 + 7 parciais de 31 · should 12 + 4 de 19 · could 6 + 0 de 19.
+
+**Decisões (revisar):** preenchimento copia escolha, número, texto e data — nunca fotos nem assinatura (senão uma foto antiga satisfaria a "foto obrigatória"). Resposta única é imposta pelo servidor. GPS negado ou sem sinal não impede a inspeção; fica "não registrado".
+
+**Bugs graves achados pelos testes e corrigidos:**
+1. **Fórmulas quebravam ao inserir ou mover questões.** Cálculo cita questões por número (`[3] - [4]`); uma questão nova no topo deslocava tudo e o peso líquido passava a subtrair a questão errada. A publicação acusava, mas o gestor não saberia consertar. Agora o editor reescreve as referências a cada mudança; questão excluída vira `[?]` para a validação apontar, em vez de mirar outra questão em silêncio.
+2. **Inspeção parada na fila.** Finalizar enquanto o sync de abertura do app ainda rodava fazia o pedido de sync se perder; a inspeção só subia no próximo gatilho (reconectar ou tocar em sincronizar). Agora um pedido que chega durante um sync faz a passada repetir antes de terminar.
