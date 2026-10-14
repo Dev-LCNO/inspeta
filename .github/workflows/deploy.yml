@@ -8,8 +8,6 @@ on:
 
 permissions:
   contents: read
-  pages: write
-  id-token: write
 
 concurrency:
   group: publicar
@@ -24,23 +22,14 @@ jobs:
   conferir:
     name: Conferir configuração
     runs-on: ubuntu-latest
-    outputs:
-      app_url: ${{ steps.pages.outputs.base_url }}
     steps:
       - name: Variáveis e segredos obrigatórios
-        env:
-          ANON: ${{ vars.SUPABASE_ANON_KEY }}
-          CRON: ${{ secrets.CRON_SECRET }}
         run: |
           falta=""
           [ -n "$SUPABASE_PROJECT_REF" ] || falta="$falta SUPABASE_PROJECT_REF(variável)"
-          [ -n "$ANON" ] || falta="$falta SUPABASE_ANON_KEY(variável)"
           [ -n "$SUPABASE_ACCESS_TOKEN" ] || falta="$falta SUPABASE_ACCESS_TOKEN(segredo)"
           [ -n "$SUPABASE_DB_PASSWORD" ] || falta="$falta SUPABASE_DB_PASSWORD(segredo)"
-          [ -n "$CRON" ] || falta="$falta CRON_SECRET(segredo)"
           if [ -n "$falta" ]; then echo "::error::Faltam no GitHub:$falta (veja replica/backend.md)"; exit 1; fi
-      - id: pages
-        uses: actions/configure-pages@v5
 
   backend:
     name: Supabase (banco, funções, auth)
@@ -61,76 +50,17 @@ jobs:
         run: supabase link --project-ref "$SUPABASE_PROJECT_REF" -p "$SUPABASE_DB_PASSWORD"
       - name: Migrações do banco
         run: supabase db push -p "$SUPABASE_DB_PASSWORD"
-      - name: Segredos das funções
+      - name: Segredos das funções (só os opcionais)
         env:
-          APP_URL: ${{ needs.conferir.outputs.app_url }}
-          CRON_SECRET: ${{ secrets.CRON_SECRET }}
           RESEND_API_KEY: ${{ secrets.RESEND_API_KEY }}
           EMAIL_REMETENTE: ${{ vars.EMAIL_REMETENTE }}
         run: |
-          ORIGENS=$(echo "$APP_URL" | sed -E 's#^(https?://[^/]+).*#\1#')
           f=$(mktemp)
-          { echo "APP_URL=${APP_URL%/}/"; echo "ORIGENS=$ORIGENS"; echo "CRON_SECRET=$CRON_SECRET"
-            [ -n "$RESEND_API_KEY" ] && echo "RESEND_API_KEY=$RESEND_API_KEY"
-            [ -n "$EMAIL_REMETENTE" ] && echo "EMAIL_REMETENTE=$EMAIL_REMETENTE"; } > "$f"
-          supabase secrets set --env-file "$f" --project-ref "$SUPABASE_PROJECT_REF"
+          { [ -n "$RESEND_API_KEY" ] && echo "RESEND_API_KEY=$RESEND_API_KEY"
+            [ -n "$EMAIL_REMETENTE" ] && echo "EMAIL_REMETENTE=$EMAIL_REMETENTE"; } > "$f" || true
+          [ -s "$f" ] && supabase secrets set --env-file "$f" --project-ref "$SUPABASE_PROJECT_REF" || echo "sem segredos opcionais"
           rm -f "$f"
       - name: Funções api e jobs
         run: |
           supabase functions deploy api --no-verify-jwt --project-ref "$SUPABASE_PROJECT_REF"
           supabase functions deploy jobs --no-verify-jwt --project-ref "$SUPABASE_PROJECT_REF"
-      - name: Auth (endereço do app, cadastro fechado, SMTP do Resend)
-        env:
-          APP_URL: ${{ needs.conferir.outputs.app_url }}
-          RESEND_API_KEY: ${{ secrets.RESEND_API_KEY }}
-          EMAIL_REMETENTE: ${{ vars.EMAIL_REMETENTE }}
-        run: |
-          # API de gerenciamento oficial: https://supabase.com/docs/reference/api/v1-update-auth-service-config
-          APP="${APP_URL%/}/"
-          corpo=$(jq -n --arg site "$APP" '{site_url: $site, uri_allow_list: ($site + "**"), disable_signup: true, password_min_length: 8}')
-          if [ -n "$RESEND_API_KEY" ] && [ -n "$EMAIL_REMETENTE" ]; then
-            nome=$(echo "$EMAIL_REMETENTE" | sed -nE 's/^ *([^<]*[^< ]) *<.*/\1/p'); nome=${nome:-Inspeta}
-            email=$(echo "$EMAIL_REMETENTE" | sed -E 's/.*<([^>]+)>.*/\1/')
-            corpo=$(echo "$corpo" | jq --arg k "$RESEND_API_KEY" --arg n "$nome" --arg e "$email" \
-              '. + {smtp_host: "smtp.resend.com", smtp_port: "465", smtp_user: "resend", smtp_pass: $k, smtp_admin_email: $e, smtp_sender_name: $n}')
-          fi
-          curl -fsS -o /dev/null -X PATCH "https://api.supabase.com/v1/projects/$SUPABASE_PROJECT_REF/config/auth" \
-            -H "Authorization: Bearer $SUPABASE_ACCESS_TOKEN" -H "Content-Type: application/json" -d "$corpo"
-      - name: Ligar o agendador (pg_cron → jobs)
-        env:
-          CRON_SECRET: ${{ secrets.CRON_SECRET }}
-        run: |
-          for i in 1 2 3 4 5; do
-            curl -fsS -X POST "https://$SUPABASE_PROJECT_REF.supabase.co/functions/v1/jobs" \
-              -H "x-cron-secret: $CRON_SECRET" -H "Content-Type: application/json" -d '{"acao":"configurar"}' && exit 0
-            sleep 10
-          done
-          exit 1
-
-  app:
-    name: App (GitHub Pages)
-    needs: [conferir, backend]
-    runs-on: ubuntu-latest
-    environment:
-      name: github-pages
-      url: ${{ steps.deploy.outputs.page_url }}
-    steps:
-      - uses: actions/checkout@v4
-      - uses: oven-sh/setup-bun@v2
-        with:
-          bun-version: 1.2.21
-      - run: bun install
-      - name: Build apontando para o Supabase
-        env:
-          INSPETA_API: https://${{ vars.SUPABASE_PROJECT_REF }}.supabase.co/functions/v1/api
-          INSPETA_AUTH: https://${{ vars.SUPABASE_PROJECT_REF }}.supabase.co/auth/v1
-          INSPETA_ANON_KEY: ${{ vars.SUPABASE_ANON_KEY }}
-        run: PATH="$PWD/node_modules/.bin:$PATH" ./scripts/build.sh
-      - name: Nenhuma chave secreta no bundle
-        run: |
-          ! grep -RqiE "service_role|sk_live|re_[A-Za-z0-9]{20,}" app/dist
-      - uses: actions/upload-pages-artifact@v3
-        with:
-          path: app/dist
-      - id: deploy
-        uses: actions/deploy-pages@v4

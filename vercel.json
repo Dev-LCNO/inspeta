@@ -1,0 +1,15 @@
+{
+  "$schema": "https://openapi.vercel.sh/vercel.json",
+  "installCommand": "npm install -g bun@1.2.21 typescript@6.0.3 && bun install",
+  "buildCommand": "./scripts/build.sh",
+  "outputDirectory": "app/dist",
+  "framework": null,
+  "headers": [
+    { "source": "/sw.js", "headers": [{ "key": "Cache-Control", "value": "no-cache" }] },
+    { "source": "/(.*)", "headers": [
+      { "key": "X-Content-Type-Options", "value": "nosniff" },
+      { "key": "Referrer-Policy", "value": "no-referrer" },
+      { "key": "X-Frame-Options", "value": "DENY" }
+    ] }
+  ]
+}

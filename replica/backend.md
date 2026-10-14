@@ -8,8 +8,8 @@
 | Login | Supabase Auth (e-mail e senha) | Cadastro público **fechado** (`disable_signup`); só entra quem foi convidado. Convite e "esqueci minha senha" voltam para `#/definir-senha`. |
 | API | `supabase/functions/api` (gerado de `backend/api.ts`) | Um endpoint POST `{metodo, args}`. Confere o token no Supabase Auth, acha a pessoa pelo e-mail, troca qualquer `quem` pelo usuário autenticado, aplica a função/permissão de cada método (`METODOS`) e roda **as mesmas regras do modo demonstração** (`app/src/data/nucleo.ts`). Uma trava por organização (`pg_advisory_xact_lock`) serializa escritas; `client_uuid` único impede inspeção duplicada. Toda escrita vai para `auditoria`. |
 | Trabalhos | `supabase/functions/jobs` (de `backend/funcao-jobs.ts` + `backend/jobs.ts`) | A cada minuto (pg_cron → pg_net): envia a fila de e-mails pelo Resend com o PDF do relatório anexado e gera a agenda (a cada 15 min). Também cria organizações (workflow "Criar organização"). Protegida por `x-cron-secret`. |
-| App | GitHub Pages | Mesmo PWA; com `INSPETA_API` definido no build ele fala com a API em vez do IndexedDB. Sem essa variável continua sendo a demonstração. |
-| Publicação | `.github/workflows/deploy.yml` | A cada push na `main`: migrações, segredos das funções, deploy das funções, configuração do Auth (endereço do app, cadastro fechado, SMTP do Resend), liga o agendador e publica o app. |
+| App | Vercel (ligada ao repositório, `vercel.json`) | Mesmo PWA; com `INSPETA_API` definido no build ele fala com a API em vez do IndexedDB. Sem essa variável continua sendo a demonstração. |
+| Publicação | `.github/workflows/deploy.yml` + Vercel | A cada push na `main`: o GitHub Actions aplica migrações e publica as funções; a Vercel constrói e publica o app. O segredo do agendador é gerado dentro do banco (`interno.config`), ninguém digita. |
 
 Desenvolvimento sem internet: `backend/dev.ts` imita as rotas do Supabase (`/auth/v1`, `/functions/v1/api`) sobre um Postgres local (`backend/scripts/pg-local.sh`).
 
@@ -54,3 +54,10 @@ O CLICQ vende por contrato com o comercial, sem assinatura pelo site. Não há S
 ./scripts/test-backend.sh   # Postgres local + API real: jobs.test + api-seguranca + as 11 suítes ponta a ponta
 ./scripts/test.sh           # modo demonstração (sem backend)
 ```
+
+## Estado da produção (14/10/2026)
+
+- Projeto Supabase `inspeta` (São Paulo, ref `ebtmuiklxgpehpboinba`): tabelas, RLS fechado, `interno.config` e pg_cron **aplicados** pelo conector.
+- Funções `api` e `jobs`: **pendentes** — o conector não comporta o tamanho do código; sobem pelo GitHub Actions.
+- App: **pendente** — Vercel ligada ao repositório Dev-LCNO/inspeta.
+- Auth: no painel do Supabase, Authentication → Sign In / Providers → desligar "Allow new users to sign up"; URL Configuration → Site URL = endereço do app.

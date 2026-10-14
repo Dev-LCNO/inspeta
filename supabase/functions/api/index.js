@@ -1,147 +1,147 @@
 // backend/funcao-api.ts
-import postgres from "npm:postgres@3.4.5";
+import Ze from "npm:postgres@3.4.5";
 
 // app/src/data/acesso.ts
-var SEM_FUNCAO = { id: "", nome: "Sem função", acoes: [] };
-function unir(a, b) {
-  if (a === "todos" || b === "todos")
+var Ee = { id: "", nome: "Sem função", acoes: [] };
+function Xo(r, i) {
+  if (r === "todos" || i === "todos")
     return "todos";
-  return [.../* @__PURE__ */ new Set([...a, ...b])];
+  return [.../* @__PURE__ */ new Set([...r, ...i])];
 }
-function resolverMembros(regs, funcoes, equipes) {
-  let membrosDa = (eqIds) => equipes.filter((e) => eqIds.includes(e.id)).flatMap((e) => e.membros);
-  return regs.map((r) => {
-    let f = funcoes.find((x) => x.id === r.funcao_id) ?? SEM_FUNCAO, minhas = equipes.filter((e) => e.membros.includes(r.id)), acessos = [r.acesso, ...minhas.map((e) => e.acesso)], formularios = acessos.reduce((acc, a) => unir(acc, a.formularios), []), avaliados = acessos.reduce((acc, a) => unir(acc, a.avaliados), []), ve = /* @__PURE__ */ new Set;
-    for (let a of acessos) {
-      for (let id of a.ver_membros)
-        ve.add(id);
-      for (let id of membrosDa(a.ver_equipes))
-        ve.add(id);
+function so(r, i, d) {
+  let u = (b) => d.filter((_) => b.includes(_.id)).flatMap((_) => _.membros);
+  return r.map((b) => {
+    let _ = i.find((p) => p.id === b.funcao_id) ?? Ee, m = d.filter((p) => p.membros.includes(b.id)), h = [b.acesso, ...m.map((p) => p.acesso)], y = h.reduce((p, x) => Xo(p, x.formularios), []), v = h.reduce((p, x) => Xo(p, x.avaliados), []), f = /* @__PURE__ */ new Set;
+    for (let p of h) {
+      for (let x of p.ver_membros)
+        f.add(x);
+      for (let x of u(p.ver_equipes))
+        f.add(x);
     }
-    return ve.delete(r.id), {
-      id: r.id,
-      org_id: r.org_id,
-      nome: r.nome,
-      email: r.email,
-      funcao_id: f.id,
-      funcao: f.nome,
-      acoes: r.is_master ? [.../* @__PURE__ */ new Set([...f.acoes])] : [...f.acoes],
-      is_master: r.is_master,
-      ativo: r.ativo,
-      equipes: minhas.map((e) => e.id),
-      formularios_permitidos: formularios,
-      avaliados_permitidos: avaliados,
-      ve_inspecoes_de: [...ve]
+    return f.delete(b.id), {
+      id: b.id,
+      org_id: b.org_id,
+      nome: b.nome,
+      email: b.email,
+      funcao_id: _.id,
+      funcao: _.nome,
+      acoes: b.is_master ? [.../* @__PURE__ */ new Set([..._.acoes])] : [..._.acoes],
+      is_master: b.is_master,
+      ativo: b.ativo,
+      equipes: m.map((p) => p.id),
+      formularios_permitidos: y,
+      avaliados_permitidos: v,
+      ve_inspecoes_de: [...f]
     };
   });
 }
-var ACESSO_PESSOA_NOVA = { formularios: [], avaliados: "todos", ver_membros: [], ver_equipes: [] }, ACESSO_EQUIPE_NOVA = { formularios: [], avaliados: [], ver_membros: [], ver_equipes: [] };
+var Ho = { formularios: [], avaliados: "todos", ver_membros: [], ver_equipes: [] }, oe = { formularios: [], avaliados: [], ver_membros: [], ver_equipes: [] };
 // packages/form-engine/src/formula.ts
-class FormulaError extends Error {
+class oo extends Error {
 }
-function tokenize(src) {
-  let out = [], i = 0;
-  while (i < src.length) {
-    let c = src[i];
-    if (c === " " || c === "\t") {
-      i++;
+function ee(r) {
+  let i = [], d = 0;
+  while (d < r.length) {
+    let u = r[d];
+    if (u === " " || u === "\t") {
+      d++;
       continue;
     }
-    if (c === "[") {
-      let end = src.indexOf("]", i);
-      if (end < 0)
-        throw new FormulaError("colchete sem fechar");
-      let n = Number(src.slice(i + 1, end).trim());
-      if (!Number.isInteger(n) || n < 1)
-        throw new FormulaError(`referência inválida: ${src.slice(i, end + 1)}`);
-      out.push({ t: "ref", v: n }), i = end + 1;
+    if (u === "[") {
+      let b = r.indexOf("]", d);
+      if (b < 0)
+        throw new oo("colchete sem fechar");
+      let _ = Number(r.slice(d + 1, b).trim());
+      if (!Number.isInteger(_) || _ < 1)
+        throw new oo(`referência inválida: ${r.slice(d, b + 1)}`);
+      i.push({ t: "ref", v: _ }), d = b + 1;
       continue;
     }
-    if (/[0-9.,]/.test(c)) {
-      let j = i;
-      while (j < src.length && /[0-9.,]/.test(src[j]))
-        j++;
-      let raw = src.slice(i, j).replace(",", "."), v = Number(raw);
-      if (!Number.isFinite(v))
-        throw new FormulaError(`número inválido: ${raw}`);
-      out.push({ t: "num", v }), i = j;
+    if (/[0-9.,]/.test(u)) {
+      let b = d;
+      while (b < r.length && /[0-9.,]/.test(r[b]))
+        b++;
+      let _ = r.slice(d, b).replace(",", "."), m = Number(_);
+      if (!Number.isFinite(m))
+        throw new oo(`número inválido: ${_}`);
+      i.push({ t: "num", v: m }), d = b;
       continue;
     }
-    if (c === "+" || c === "-" || c === "*" || c === "/") {
-      out.push({ t: "op", v: c }), i++;
+    if (u === "+" || u === "-" || u === "*" || u === "/") {
+      i.push({ t: "op", v: u }), d++;
       continue;
     }
-    if (c === "x" || c === "×") {
-      out.push({ t: "op", v: "*" }), i++;
+    if (u === "x" || u === "×") {
+      i.push({ t: "op", v: "*" }), d++;
       continue;
     }
-    if (c === "(") {
-      out.push({ t: "lp" }), i++;
+    if (u === "(") {
+      i.push({ t: "lp" }), d++;
       continue;
     }
-    if (c === ")") {
-      out.push({ t: "rp" }), i++;
+    if (u === ")") {
+      i.push({ t: "rp" }), d++;
       continue;
     }
-    throw new FormulaError(`caractere não permitido: "${c}"`);
+    throw new oo(`caractere não permitido: "${u}"`);
   }
-  return out;
+  return i;
 }
-function references(src) {
-  return tokenize(src).filter((t) => t.t === "ref").map((t) => t.v);
+function Mo(r) {
+  return ee(r).filter((i) => i.t === "ref").map((i) => i.v);
 }
-function evaluate(src, resolve) {
-  let toks = tokenize(src), p = 0, missing = !1, peek = () => toks[p];
-  function primary() {
-    let t = toks[p++];
-    if (!t)
-      throw new FormulaError("fórmula incompleta");
-    if (t.t === "num")
-      return t.v;
-    if (t.t === "ref") {
-      let v = resolve(t.v);
-      if (v === null || v === void 0 || !Number.isFinite(v))
-        return missing = !0, 0;
-      return v;
+function Oo(r, i) {
+  let d = ee(r), u = 0, b = !1, _ = () => d[u];
+  function m() {
+    let f = d[u++];
+    if (!f)
+      throw new oo("fórmula incompleta");
+    if (f.t === "num")
+      return f.v;
+    if (f.t === "ref") {
+      let p = i(f.v);
+      if (p === null || p === void 0 || !Number.isFinite(p))
+        return b = !0, 0;
+      return p;
     }
-    if (t.t === "op" && t.v === "-")
-      return -primary();
-    if (t.t === "lp") {
-      let v = expr(), r = toks[p++];
-      if (!r || r.t !== "rp")
-        throw new FormulaError("parêntese sem fechar");
-      return v;
+    if (f.t === "op" && f.v === "-")
+      return -m();
+    if (f.t === "lp") {
+      let p = y(), x = d[u++];
+      if (!x || x.t !== "rp")
+        throw new oo("parêntese sem fechar");
+      return p;
     }
-    throw new FormulaError("termo inesperado");
+    throw new oo("termo inesperado");
   }
-  function term() {
-    let v = primary();
+  function h() {
+    let f = m();
     for (;; ) {
-      let t = peek();
-      if (t && t.t === "op" && (t.v === "*" || t.v === "/")) {
-        p++;
-        let r = primary();
-        v = t.v === "*" ? v * r : v / r;
+      let p = _();
+      if (p && p.t === "op" && (p.v === "*" || p.v === "/")) {
+        u++;
+        let x = m();
+        f = p.v === "*" ? f * x : f / x;
       } else
-        return v;
+        return f;
     }
   }
-  function expr() {
-    let v = term();
+  function y() {
+    let f = h();
     for (;; ) {
-      let t = peek();
-      if (t && t.t === "op" && (t.v === "+" || t.v === "-")) {
-        p++;
-        let r = term();
-        v = t.v === "+" ? v + r : v - r;
+      let p = _();
+      if (p && p.t === "op" && (p.v === "+" || p.v === "-")) {
+        u++;
+        let x = h();
+        f = p.v === "+" ? f + x : f - x;
       } else
-        return v;
+        return f;
     }
   }
-  let v = expr();
-  if (p !== toks.length)
-    throw new FormulaError("sobrou texto depois da fórmula");
-  if (missing)
+  let v = y();
+  if (u !== d.length)
+    throw new oo("sobrou texto depois da fórmula");
+  if (b)
     return null;
   if (!Number.isFinite(v))
     return null;
@@ -149,163 +149,163 @@ function evaluate(src, resolve) {
 }
 
 // packages/form-engine/src/engine.ts
-function round(v, casas) {
-  let f = 10 ** casas;
-  return Math.sign(v) * Math.round(Math.abs(v) * f + Number.EPSILON) / f;
+function _o(r, i) {
+  let d = 10 ** i;
+  return Math.sign(r) * Math.round(Math.abs(r) * d + Number.EPSILON) / d;
 }
-function index(def) {
-  let questions = /* @__PURE__ */ new Map, byNumber = /* @__PURE__ */ new Map, topics = /* @__PURE__ */ new Map, options = /* @__PURE__ */ new Map, n = 0;
-  for (let t of def.topicos) {
-    topics.set(t.key, t);
-    for (let q of t.questoes) {
-      n++, questions.set(q.key, { q, topic: t, numero: n }), byNumber.set(n, q);
-      for (let o of q.opcoes ?? [])
-        options.set(o.key, { option: o, question: q });
+function So(r) {
+  let i = /* @__PURE__ */ new Map, d = /* @__PURE__ */ new Map, u = /* @__PURE__ */ new Map, b = /* @__PURE__ */ new Map, _ = 0;
+  for (let m of r.topicos) {
+    u.set(m.key, m);
+    for (let h of m.questoes) {
+      _++, i.set(h.key, { q: h, topic: m, numero: _ }), d.set(_, h);
+      for (let y of h.opcoes ?? [])
+        b.set(y.key, { option: y, question: h });
     }
   }
-  return { questions, byNumber, topics, options };
+  return { questions: i, byNumber: d, topics: u, options: b };
 }
-function isAnswered(q, a) {
-  if (!a)
+function De(r, i) {
+  if (!i)
     return !1;
-  if (a.na)
+  if (i.na)
     return !0;
-  switch (q.tipo) {
+  switch (r.tipo) {
     case "escolha_simples":
     case "escolha_multipla":
-      return (a.opcoes?.length ?? 0) > 0;
+      return (i.opcoes?.length ?? 0) > 0;
     case "numerica":
-      return typeof a.numero === "number" && Number.isFinite(a.numero);
+      return typeof i.numero === "number" && Number.isFinite(i.numero);
     case "texto":
-      return (a.texto ?? "").trim().length > 0;
+      return (i.texto ?? "").trim().length > 0;
     case "data_hora":
-      return !!a.data;
+      return !!i.data;
     case "assinatura":
-      return !!a.assinatura;
+      return !!i.assinatura;
     case "calculo":
       return !0;
   }
 }
-function selected(q, a) {
-  if (!a?.opcoes?.length)
+function Pe(r, i) {
+  if (!i?.opcoes?.length)
     return [];
-  let keys = new Set(a.opcoes);
-  return (q.opcoes ?? []).filter((o) => keys.has(o.key));
+  let d = new Set(i.opcoes);
+  return (r.opcoes ?? []).filter((u) => d.has(u.key));
 }
-function faixaPontos(q, v) {
-  let faixas = q.numerica?.faixas_nota;
-  if (!faixas?.length)
+function Ie(r, i) {
+  let d = r.numerica?.faixas_nota;
+  if (!d?.length)
     return null;
-  for (let f of faixas)
-    if (f.ate === null || v <= f.ate)
-      return f.pontos;
-  return faixas[faixas.length - 1].pontos;
+  for (let u of d)
+    if (u.ate === null || i <= u.ate)
+      return u.pontos;
+  return d[d.length - 1].pontos;
 }
-function maxPontos(q) {
-  switch (q.tipo) {
+function ae(r) {
+  switch (r.tipo) {
     case "escolha_simples": {
-      let ps = (q.opcoes ?? []).filter((o) => !o.na && typeof o.pontos === "number").map((o) => o.pontos);
-      return ps.length ? Math.max(...ps) : null;
+      let i = (r.opcoes ?? []).filter((d) => !d.na && typeof d.pontos === "number").map((d) => d.pontos);
+      return i.length ? Math.max(...i) : null;
     }
     case "escolha_multipla": {
-      let ps = (q.opcoes ?? []).filter((o) => !o.na && typeof o.pontos === "number").map((o) => o.pontos);
-      return ps.length ? ps.filter((p) => p > 0).reduce((s, p) => s + p, 0) : null;
+      let i = (r.opcoes ?? []).filter((d) => !d.na && typeof d.pontos === "number").map((d) => d.pontos);
+      return i.length ? i.filter((d) => d > 0).reduce((d, u) => d + u, 0) : null;
     }
     case "numerica": {
-      let fs = q.numerica?.faixas_nota;
-      return fs?.length ? Math.max(...fs.map((f) => f.pontos)) : null;
+      let i = r.numerica?.faixas_nota;
+      return i?.length ? Math.max(...i.map((d) => d.pontos)) : null;
     }
     default:
       return null;
   }
 }
-function insideLimit(q, v) {
-  let lim = q.numerica?.limite;
-  if (!lim || lim.min == null && lim.max == null)
+function re(r, i) {
+  let d = r.numerica?.limite;
+  if (!d || d.min == null && d.max == null)
     return null;
-  if (lim.min != null && v < lim.min)
+  if (d.min != null && i < d.min)
     return !1;
-  if (lim.max != null && v > lim.max)
+  if (d.max != null && i > d.max)
     return !1;
   return !0;
 }
-function visibility(def, answers, idx = index(def)) {
-  let memo = /* @__PURE__ */ new Map, visiting = /* @__PURE__ */ new Set, depOk = (dep) => {
-    if (!dep)
+function ie(r, i, d = So(r)) {
+  let u = /* @__PURE__ */ new Map, b = /* @__PURE__ */ new Set, _ = (v) => {
+    if (!v)
       return !0;
-    if (!questionVisible(dep.questao))
+    if (!h(v.questao))
       return !1;
-    return (answers[dep.questao]?.opcoes ?? []).includes(dep.opcao);
-  }, topicVisible = (key) => {
-    let id = "t:" + key;
-    if (memo.has(id))
-      return memo.get(id);
-    if (visiting.has(id))
+    return (i[v.questao]?.opcoes ?? []).includes(v.opcao);
+  }, m = (v) => {
+    let f = "t:" + v;
+    if (u.has(f))
+      return u.get(f);
+    if (b.has(f))
       return !1;
-    visiting.add(id);
-    let v = depOk(idx.topics.get(key)?.depende_de);
-    return visiting.delete(id), memo.set(id, v), v;
+    b.add(f);
+    let p = _(d.topics.get(v)?.depende_de);
+    return b.delete(f), u.set(f, p), p;
   };
-  function questionVisible(key) {
-    let id = "q:" + key;
-    if (memo.has(id))
-      return memo.get(id);
-    let entry = idx.questions.get(key);
-    if (!entry)
+  function h(v) {
+    let f = "q:" + v;
+    if (u.has(f))
+      return u.get(f);
+    let p = d.questions.get(v);
+    if (!p)
       return !1;
-    if (visiting.has(id))
+    if (b.has(f))
       return !1;
-    visiting.add(id);
-    let v = topicVisible(entry.topic.key) && depOk(entry.q.depende_de);
-    return visiting.delete(id), memo.set(id, v), v;
+    b.add(f);
+    let x = m(p.topic.key) && _(p.q.depende_de);
+    return b.delete(f), u.set(f, x), x;
   }
-  let out = /* @__PURE__ */ new Set;
-  for (let t of def.topicos)
-    if (topicVisible(t.key))
-      out.add(t.key);
-  for (let key of idx.questions.keys())
-    if (questionVisible(key))
-      out.add(key);
-  return out;
+  let y = /* @__PURE__ */ new Set;
+  for (let v of r.topicos)
+    if (m(v.key))
+      y.add(v.key);
+  for (let v of d.questions.keys())
+    if (h(v))
+      y.add(v);
+  return y;
 }
-function evaluateForm(def, answers, previous = {}) {
-  let idx = index(def), vis = visibility(def, answers, idx), casas = def.config.casas_decimais ?? 1, calcMemo = /* @__PURE__ */ new Map, calcStack = /* @__PURE__ */ new Set, numericValue = (n) => {
-    let q = idx.byNumber.get(n);
-    if (!q || !vis.has(q.key))
+function qo(r, i, d = {}) {
+  let u = So(r), b = ie(r, i, u), _ = r.config.casas_decimais ?? 1, m = /* @__PURE__ */ new Map, h = /* @__PURE__ */ new Set, y = (N) => {
+    let T = u.byNumber.get(N);
+    if (!T || !b.has(T.key))
       return null;
-    if (q.tipo === "numerica") {
-      let v = answers[q.key]?.numero;
-      return typeof v === "number" && !answers[q.key]?.na ? v : null;
+    if (T.tipo === "numerica") {
+      let J = i[T.key]?.numero;
+      return typeof J === "number" && !i[T.key]?.na ? J : null;
     }
-    if (q.tipo === "calculo")
-      return calcValue(q);
+    if (T.tipo === "calculo")
+      return v(T);
     return null;
   };
-  function calcValue(q) {
-    if (calcMemo.has(q.key))
-      return calcMemo.get(q.key);
-    if (calcStack.has(q.key) || !q.calculo?.formula)
+  function v(N) {
+    if (m.has(N.key))
+      return m.get(N.key);
+    if (h.has(N.key) || !N.calculo?.formula)
       return null;
-    calcStack.add(q.key);
-    let v = null, fallback = q.calculo.valor_se_vazio;
+    h.add(N.key);
+    let T = null, J = N.calculo.valor_se_vazio;
     try {
-      v = evaluate(q.calculo.formula, (n) => {
-        let x = numericValue(n);
-        return x === null && fallback != null ? fallback : x;
+      T = Oo(N.calculo.formula, (ao) => {
+        let io = y(ao);
+        return io === null && J != null ? J : io;
       });
     } catch {
-      v = null;
+      T = null;
     }
-    return calcStack.delete(q.key), calcMemo.set(q.key, v), v;
+    return h.delete(N.key), m.set(N.key, T), T;
   }
-  let questoes = {}, topicos = {}, formFactor = 1, totalObtido = 0, totalMax = 0, ncs = [], pendentes = [], respondidas = 0, visiveis = 0;
-  for (let t of def.topicos) {
-    let tPontos = 0, tMax = 0, tFactor = 1;
-    for (let q of t.questoes) {
-      let a = answers[q.key], numero = idx.questions.get(q.key).numero, visivel = vis.has(q.key), res = {
-        key: q.key,
-        numero,
-        visivel,
+  let f = {}, p = {}, x = 1, k = 0, I = 0, D = [], L = [], H = 0, Q = 0;
+  for (let N of r.topicos) {
+    let T = 0, J = 0, ao = 1;
+    for (let C of N.questoes) {
+      let no = i[C.key], vo = u.questions.get(C.key).numero, yo = b.has(C.key), R = {
+        key: C.key,
+        numero: vo,
+        visivel: yo,
         respondida: !1,
         na: !1,
         pontos: null,
@@ -314,240 +314,240 @@ function evaluateForm(def, answers, previous = {}) {
         pendencias: [],
         reincidente: !1
       };
-      if (questoes[q.key] = res, !visivel)
+      if (f[C.key] = R, !yo)
         continue;
-      if (q.tipo !== "calculo")
-        visiveis++;
-      if (res.respondida = isAnswered(q, a), q.tipo !== "calculo" && res.respondida)
-        respondidas++;
-      let sel = selected(q, a);
-      if (res.na = !!a?.na || sel.length > 0 && sel.every((o) => o.na), q.tipo === "calculo")
-        res.valor_calculado = calcValue(q);
-      if (res.respondida && !res.na) {
-        if (q.tipo === "escolha_simples" || q.tipo === "escolha_multipla") {
-          let scored = sel.filter((o) => !o.na), max = maxPontos(q);
-          if (max !== null)
-            res.pontos_max = max, res.pontos = scored.reduce((s, o) => s + (o.pontos ?? 0), 0);
-          if (scored.some((o) => o.conforme === !1))
-            res.conforme = !1;
-          else if (scored.some((o) => o.conforme === !0))
-            res.conforme = !0;
-          for (let o of scored)
-            if (o.desconto && o.desconto.pct > 0) {
-              let f = 1 - Math.min(100, o.desconto.pct) / 100;
-              if (o.desconto.escopo === "formulario")
-                formFactor *= f;
+      if (C.tipo !== "calculo")
+        Q++;
+      if (R.respondida = De(C, no), C.tipo !== "calculo" && R.respondida)
+        H++;
+      let uo = Pe(C, no);
+      if (R.na = !!no?.na || uo.length > 0 && uo.every((Z) => Z.na), C.tipo === "calculo")
+        R.valor_calculado = v(C);
+      if (R.respondida && !R.na) {
+        if (C.tipo === "escolha_simples" || C.tipo === "escolha_multipla") {
+          let Z = uo.filter((B) => !B.na), U = ae(C);
+          if (U !== null)
+            R.pontos_max = U, R.pontos = Z.reduce((B, to) => B + (to.pontos ?? 0), 0);
+          if (Z.some((B) => B.conforme === !1))
+            R.conforme = !1;
+          else if (Z.some((B) => B.conforme === !0))
+            R.conforme = !0;
+          for (let B of Z)
+            if (B.desconto && B.desconto.pct > 0) {
+              let to = 1 - Math.min(100, B.desconto.pct) / 100;
+              if (B.desconto.escopo === "formulario")
+                x *= to;
               else
-                tFactor *= f;
+                ao *= to;
             }
-        } else if (q.tipo === "numerica") {
-          let v = a.numero, p = faixaPontos(q, v);
-          if (p !== null)
-            res.pontos = p, res.pontos_max = maxPontos(q);
-          res.conforme = insideLimit(q, v);
+        } else if (C.tipo === "numerica") {
+          let Z = no.numero, U = Ie(C, Z);
+          if (U !== null)
+            R.pontos = U, R.pontos_max = ae(C);
+          R.conforme = re(C, Z);
         }
       }
-      if (res.pontos !== null && res.pontos_max !== null)
-        tPontos += res.pontos, tMax += res.pontos_max;
-      let pend = [];
-      if (q.obrigatoria && !res.respondida && q.tipo !== "calculo")
-        pend.push({ tipo: "obrigatoria" });
-      if (res.respondida && !res.na) {
-        let fotos = a?.fotos ?? 0, obs = (a?.observacao ?? "").trim().length > 0;
-        if (q.foto_obrigatoria && fotos < 1)
-          pend.push({ tipo: "foto" });
-        if (res.conforme === !1) {
-          if (q.nc_exige?.foto && fotos < 1 && !pend.some((p) => p.tipo === "foto"))
-            pend.push({ tipo: "foto" });
-          if (q.nc_exige?.observacao && !obs)
-            pend.push({ tipo: "observacao" });
-          if (q.tipo === "numerica" && q.numerica?.limite?.obs_obrigatoria && !obs && !pend.some((p) => p.tipo === "observacao"))
-            pend.push({ tipo: "observacao" });
+      if (R.pontos !== null && R.pontos_max !== null)
+        T += R.pontos, J += R.pontos_max;
+      let X = [];
+      if (C.obrigatoria && !R.respondida && C.tipo !== "calculo")
+        X.push({ tipo: "obrigatoria" });
+      if (R.respondida && !R.na) {
+        let Z = no?.fotos ?? 0, U = (no?.observacao ?? "").trim().length > 0;
+        if (C.foto_obrigatoria && Z < 1)
+          X.push({ tipo: "foto" });
+        if (R.conforme === !1) {
+          if (C.nc_exige?.foto && Z < 1 && !X.some((B) => B.tipo === "foto"))
+            X.push({ tipo: "foto" });
+          if (C.nc_exige?.observacao && !U)
+            X.push({ tipo: "observacao" });
+          if (C.tipo === "numerica" && C.numerica?.limite?.obs_obrigatoria && !U && !X.some((B) => B.tipo === "observacao"))
+            X.push({ tipo: "observacao" });
         }
       }
-      if (res.pendencias = pend, pend.length)
-        pendentes.push(q.key);
-      if (res.conforme === !1) {
-        if (ncs.push(q.key), previous[q.key]?.conforme === !1)
-          res.reincidente = !0;
+      if (R.pendencias = X, X.length)
+        L.push(C.key);
+      if (R.conforme === !1) {
+        if (D.push(C.key), d[C.key]?.conforme === !1)
+          R.reincidente = !0;
       }
     }
-    let tv = vis.has(t.key), obtido = tPontos * tFactor;
-    topicos[t.key] = {
-      key: t.key,
-      visivel: tv,
-      pontos: obtido,
-      pontos_max: tMax,
-      desconto_pct: round((1 - tFactor) * 100, 2),
-      pct: tMax > 0 ? round(obtido / tMax * 100, casas) : null
-    }, totalObtido += obtido, totalMax += tMax;
+    let io = b.has(N.key), co = T * ao;
+    p[N.key] = {
+      key: N.key,
+      visivel: io,
+      pontos: co,
+      pontos_max: J,
+      desconto_pct: _o((1 - ao) * 100, 2),
+      pct: J > 0 ? _o(co / J * 100, _) : null
+    }, k += co, I += J;
   }
-  let obtidoFinal = totalObtido * formFactor, nota = def.config.calcular_nota !== !1 && totalMax > 0 ? round(obtidoFinal / totalMax * 100, casas) : null;
+  let z = k * x, W = r.config.calcular_nota !== !1 && I > 0 ? _o(z / I * 100, _) : null;
   return {
-    questoes,
-    topicos,
-    pontos: round(obtidoFinal, 2),
-    pontos_max: round(totalMax, 2),
-    nota_pct: nota,
-    classificacao: nota === null ? null : classify(def.config.classificacoes ?? [], nota),
-    nao_conformidades: ncs,
-    pendentes,
-    respondidas,
-    visiveis
+    questoes: f,
+    topicos: p,
+    pontos: _o(z, 2),
+    pontos_max: _o(I, 2),
+    nota_pct: W,
+    classificacao: W === null ? null : ne(r.config.classificacoes ?? [], W),
+    nao_conformidades: D,
+    pendentes: L,
+    respondidas: H,
+    visiveis: Q
   };
 }
-function classify(cls, pct) {
-  let hits = cls.filter((c) => pct >= c.min && pct <= c.max);
-  if (!hits.length)
+function ne(r, i) {
+  let d = r.filter((u) => i >= u.min && i <= u.max);
+  if (!d.length)
     return null;
-  return hits.reduce((a, b) => b.min > a.min ? b : a);
+  return d.reduce((u, b) => b.min > u.min ? b : u);
 }
-function validateDefinition(def) {
-  let issues = [], idx = index(def), seen = /* @__PURE__ */ new Set, dup = (k, onde) => {
-    if (seen.has(k))
-      issues.push({ onde, problema: `chave duplicada ${k}` });
-    seen.add(k);
+function Co(r) {
+  let i = [], d = So(r), u = /* @__PURE__ */ new Set, b = (v, f) => {
+    if (u.has(v))
+      i.push({ onde: f, problema: `chave duplicada ${v}` });
+    u.add(v);
   };
-  if (!def.topicos.length)
-    issues.push({ onde: "formulário", problema: "precisa de pelo menos um tópico" });
-  let total = 0;
-  for (let t of def.topicos) {
-    if (dup(t.key, `tópico "${t.titulo}"`), !t.titulo.trim())
-      issues.push({ onde: "tópico", problema: "tópico sem título" });
-    if (!t.questoes.length)
-      issues.push({ onde: `tópico "${t.titulo}"`, problema: "tópico sem questões" });
-    checkDep(t.depende_de, `tópico "${t.titulo}"`);
-    for (let q of t.questoes) {
-      total++;
-      let onde = `questão ${idx.questions.get(q.key).numero} "${q.titulo || "sem título"}"`;
-      if (dup(q.key, onde), !q.titulo.trim())
-        issues.push({ onde, problema: "sem título" });
-      if (checkDep(q.depende_de, onde), q.tipo === "escolha_simples" || q.tipo === "escolha_multipla") {
-        let ops = q.opcoes ?? [];
-        if (ops.length < 2)
-          issues.push({ onde, problema: "precisa de pelo menos 2 opções" });
-        for (let o of ops) {
-          if (dup(o.key, onde), !o.texto.trim())
-            issues.push({ onde, problema: "opção sem texto" });
-          if (o.desconto && (o.desconto.pct < 0 || o.desconto.pct > 100))
-            issues.push({ onde, problema: "desconto deve estar entre 0 e 100%" });
+  if (!r.topicos.length)
+    i.push({ onde: "formulário", problema: "precisa de pelo menos um tópico" });
+  let _ = 0;
+  for (let v of r.topicos) {
+    if (b(v.key, `tópico "${v.titulo}"`), !v.titulo.trim())
+      i.push({ onde: "tópico", problema: "tópico sem título" });
+    if (!v.questoes.length)
+      i.push({ onde: `tópico "${v.titulo}"`, problema: "tópico sem questões" });
+    y(v.depende_de, `tópico "${v.titulo}"`);
+    for (let f of v.questoes) {
+      _++;
+      let p = `questão ${d.questions.get(f.key).numero} "${f.titulo || "sem título"}"`;
+      if (b(f.key, p), !f.titulo.trim())
+        i.push({ onde: p, problema: "sem título" });
+      if (y(f.depende_de, p), f.tipo === "escolha_simples" || f.tipo === "escolha_multipla") {
+        let x = f.opcoes ?? [];
+        if (x.length < 2)
+          i.push({ onde: p, problema: "precisa de pelo menos 2 opções" });
+        for (let k of x) {
+          if (b(k.key, p), !k.texto.trim())
+            i.push({ onde: p, problema: "opção sem texto" });
+          if (k.desconto && (k.desconto.pct < 0 || k.desconto.pct > 100))
+            i.push({ onde: p, problema: "desconto deve estar entre 0 e 100%" });
         }
       }
-      if (q.tipo === "numerica") {
-        let fs = q.numerica?.faixas_nota ?? [], last = -1 / 0;
-        fs.forEach((f, i) => {
-          if (f.ate === null && i !== fs.length - 1)
-            issues.push({ onde, problema: 'só a última faixa pode ser "acima"' });
-          if (f.ate !== null) {
-            if (f.ate <= last)
-              issues.push({ onde, problema: "faixas de nota precisam ser crescentes e não podem se cruzar" });
-            last = f.ate;
+      if (f.tipo === "numerica") {
+        let x = f.numerica?.faixas_nota ?? [], k = -1 / 0;
+        x.forEach((D, L) => {
+          if (D.ate === null && L !== x.length - 1)
+            i.push({ onde: p, problema: 'só a última faixa pode ser "acima"' });
+          if (D.ate !== null) {
+            if (D.ate <= k)
+              i.push({ onde: p, problema: "faixas de nota precisam ser crescentes e não podem se cruzar" });
+            k = D.ate;
           }
         });
-        let lim = q.numerica?.limite;
-        if (lim?.min != null && lim?.max != null && lim.min > lim.max)
-          issues.push({ onde, problema: "limite mínimo maior que o máximo" });
+        let I = f.numerica?.limite;
+        if (I?.min != null && I?.max != null && I.min > I.max)
+          i.push({ onde: p, problema: "limite mínimo maior que o máximo" });
       }
-      if (q.tipo === "calculo")
+      if (f.tipo === "calculo")
         try {
-          let refs = references(q.calculo?.formula ?? "");
-          if (!refs.length && !(q.calculo?.formula ?? "").trim())
-            issues.push({ onde, problema: "fórmula vazia" });
-          for (let n of refs) {
-            let target = idx.byNumber.get(n);
-            if (!target)
-              issues.push({ onde, problema: `a fórmula usa [${n}], que não existe` });
-            else if (target.tipo !== "numerica" && target.tipo !== "calculo")
-              issues.push({ onde, problema: `a fórmula usa [${n}], que não é numérica` });
-            else if (target.key === q.key)
-              issues.push({ onde, problema: "a fórmula se refere a ela mesma" });
+          let x = Mo(f.calculo?.formula ?? "");
+          if (!x.length && !(f.calculo?.formula ?? "").trim())
+            i.push({ onde: p, problema: "fórmula vazia" });
+          for (let k of x) {
+            let I = d.byNumber.get(k);
+            if (!I)
+              i.push({ onde: p, problema: `a fórmula usa [${k}], que não existe` });
+            else if (I.tipo !== "numerica" && I.tipo !== "calculo")
+              i.push({ onde: p, problema: `a fórmula usa [${k}], que não é numérica` });
+            else if (I.key === f.key)
+              i.push({ onde: p, problema: "a fórmula se refere a ela mesma" });
           }
-        } catch (e) {
-          issues.push({ onde, problema: e instanceof FormulaError ? `fórmula: ${e.message}` : "fórmula inválida" });
+        } catch (x) {
+          i.push({ onde: p, problema: x instanceof oo ? `fórmula: ${x.message}` : "fórmula inválida" });
         }
     }
   }
-  if (total === 0 && def.topicos.length)
-    issues.push({ onde: "formulário", problema: "nenhuma questão" });
-  let edges = /* @__PURE__ */ new Map;
-  for (let [k, { q, topic }] of idx.questions) {
-    if (q.depende_de)
-      edges.set(k, q.depende_de.questao);
-    if (topic.depende_de)
-      edges.set("t:" + topic.key, topic.depende_de.questao);
+  if (_ === 0 && r.topicos.length)
+    i.push({ onde: "formulário", problema: "nenhuma questão" });
+  let m = /* @__PURE__ */ new Map;
+  for (let [v, { q: f, topic: p }] of d.questions) {
+    if (f.depende_de)
+      m.set(v, f.depende_de.questao);
+    if (p.depende_de)
+      m.set("t:" + p.key, p.depende_de.questao);
   }
-  let parentOf = (k) => {
-    let out = [], e = edges.get(k);
-    if (e)
-      out.push(e);
-    let t = idx.questions.get(k)?.topic;
-    if (t?.depende_de)
-      out.push(t.depende_de.questao);
-    return out;
+  let h = (v) => {
+    let f = [], p = m.get(v);
+    if (p)
+      f.push(p);
+    let x = d.questions.get(v)?.topic;
+    if (x?.depende_de)
+      f.push(x.depende_de.questao);
+    return f;
   };
-  for (let start of idx.questions.keys()) {
-    let stack = [...parentOf(start)], seenC = /* @__PURE__ */ new Set;
-    while (stack.length) {
-      let cur = stack.pop();
-      if (cur === start) {
-        issues.push({ onde: `questão ${idx.questions.get(start).numero}`, problema: "dependência circular" });
+  for (let v of d.questions.keys()) {
+    let f = [...h(v)], p = /* @__PURE__ */ new Set;
+    while (f.length) {
+      let x = f.pop();
+      if (x === v) {
+        i.push({ onde: `questão ${d.questions.get(v).numero}`, problema: "dependência circular" });
         break;
       }
-      if (seenC.has(cur))
+      if (p.has(x))
         continue;
-      seenC.add(cur), stack.push(...parentOf(cur));
+      p.add(x), f.push(...h(x));
     }
   }
-  return (def.config.aprovacao?.etapas ?? []).forEach((e, k) => {
-    if (!e.aprovadores.length)
-      issues.push({ onde: `aprovação, etapa ${k + 1}`, problema: "etapa sem aprovador" });
-  }), issues;
-  function checkDep(dep, onde) {
-    if (!dep)
+  return (r.config.aprovacao?.etapas ?? []).forEach((v, f) => {
+    if (!v.aprovadores.length)
+      i.push({ onde: `aprovação, etapa ${f + 1}`, problema: "etapa sem aprovador" });
+  }), i;
+  function y(v, f) {
+    if (!v)
       return;
-    let target = idx.questions.get(dep.questao)?.q;
-    if (!target)
-      return issues.push({ onde, problema: "depende de uma questão que não existe" });
-    if (target.tipo !== "escolha_simples" && target.tipo !== "escolha_multipla")
-      return issues.push({ onde, problema: "só pode depender de questão de escolha" });
-    if (!(target.opcoes ?? []).some((o) => o.key === dep.opcao))
-      issues.push({ onde, problema: "depende de uma opção que não existe" });
+    let p = d.questions.get(v.questao)?.q;
+    if (!p)
+      return i.push({ onde: f, problema: "depende de uma questão que não existe" });
+    if (p.tipo !== "escolha_simples" && p.tipo !== "escolha_multipla")
+      return i.push({ onde: f, problema: "só pode depender de questão de escolha" });
+    if (!(p.opcoes ?? []).some((x) => x.key === v.opcao))
+      i.push({ onde: f, problema: "depende de uma opção que não existe" });
   }
 }
 // app/src/data/agenda.ts
-var DIAS_SEMANA = ["domingo", "segunda", "terça", "quarta", "quinta", "sexta", "sábado"];
-var toMs = (d) => Date.parse(d + "T00:00:00Z"), fromMs = (ms) => new Date(ms).toISOString().slice(0, 10), somarDias = (d, n) => fromMs(toMs(d) + n * 86400000), diaDaSemana = (d) => new Date(toMs(d)).getUTCDay(), ultimoDiaDoMes = (y, m0) => new Date(Date.UTC(y, m0 + 1, 0)).getUTCDate();
-function casa(r, d) {
+var Me = ["domingo", "segunda", "terça", "quarta", "quinta", "sexta", "sábado"];
+var Fo = (r) => Date.parse(r + "T00:00:00Z"), Oe = (r) => new Date(r).toISOString().slice(0, 10), ro = (r, i) => Oe(Fo(r) + i * 86400000), $o = (r) => new Date(Fo(r)).getUTCDay(), Ce = (r, i) => new Date(Date.UTC(r, i + 1, 0)).getUTCDate();
+function Re(r, i) {
   switch (r.recorrencia) {
     case "nenhuma":
-      return d === r.data_inicio;
+      return i === r.data_inicio;
     case "diaria":
       return !0;
     case "semanal":
-      return ((r.dias_semana?.length) ? r.dias_semana : [diaDaSemana(r.data_inicio)]).includes(diaDaSemana(d));
+      return ((r.dias_semana?.length) ? r.dias_semana : [$o(r.data_inicio)]).includes($o(i));
     case "mensal": {
-      let alvo = Number(r.data_inicio.slice(8, 10)), dt = new Date(toMs(d));
-      return dt.getUTCDate() === Math.min(alvo, ultimoDiaDoMes(dt.getUTCFullYear(), dt.getUTCMonth()));
+      let d = Number(r.data_inicio.slice(8, 10)), u = new Date(Fo(i));
+      return u.getUTCDate() === Math.min(d, Ce(u.getUTCFullYear(), u.getUTCMonth()));
     }
   }
 }
-function datasDaRegra(r, de, ate) {
-  let fim = r.termino === "data" && r.termino_data && r.termino_data < ate ? r.termino_data : ate, out = [], n = 0;
-  for (let d = r.data_inicio;d <= fim; d = somarDias(d, 1)) {
-    if (!casa(r, d))
+function $e(r, i, d) {
+  let u = r.termino === "data" && r.termino_data && r.termino_data < d ? r.termino_data : d, b = [], _ = 0;
+  for (let m = r.data_inicio;m <= u; m = ro(m, 1)) {
+    if (!Re(r, m))
       continue;
-    if (n++, r.termino === "quantidade" && r.termino_qtd && n > r.termino_qtd)
+    if (_++, r.termino === "quantidade" && r.termino_qtd && _ > r.termino_qtd)
       break;
-    if (d >= de)
-      out.push(d);
+    if (m >= i)
+      b.push(m);
     if (r.recorrencia === "nenhuma")
       break;
   }
-  return out;
+  return b;
 }
-function deslocamentoMin(fuso, utcMs) {
-  let p = new Intl.DateTimeFormat("en-US", {
-    timeZone: fuso,
+function te(r, i) {
+  let d = new Intl.DateTimeFormat("en-US", {
+    timeZone: r,
     hourCycle: "h23",
     year: "numeric",
     month: "2-digit",
@@ -555,151 +555,151 @@ function deslocamentoMin(fuso, utcMs) {
     hour: "2-digit",
     minute: "2-digit",
     second: "2-digit"
-  }).formatToParts(new Date(utcMs)), g = (t) => Number(p.find((x) => x.type === t).value);
-  return (Date.UTC(g("year"), g("month") - 1, g("day"), g("hour"), g("minute"), g("second")) - utcMs) / 60000;
+  }).formatToParts(new Date(i)), u = (b) => Number(d.find((_) => _.type === b).value);
+  return (Date.UTC(u("year"), u("month") - 1, u("day"), u("hour"), u("minute"), u("second")) - i) / 60000;
 }
-function localParaUTC(data, hora, fuso) {
-  let [y, m, d] = data.split("-").map(Number), [hh, mm] = hora.split(":").map(Number), parede = Date.UTC(y, m - 1, d, hh, mm), ts = parede - deslocamentoMin(fuso, parede) * 60000;
-  return ts = parede - deslocamentoMin(fuso, ts) * 60000, new Date(ts).toISOString();
+function ce(r, i, d) {
+  let [u, b, _] = r.split("-").map(Number), [m, h] = i.split(":").map(Number), y = Date.UTC(u, b - 1, _, m, h), v = y - te(d, y) * 60000;
+  return v = y - te(d, v) * 60000, new Date(v).toISOString();
 }
-function dataLocal(iso, fuso) {
-  return new Intl.DateTimeFormat("en-CA", { timeZone: fuso }).format(new Date(iso));
+function Fe(r, i) {
+  return new Intl.DateTimeFormat("en-CA", { timeZone: i }).format(new Date(r));
 }
-function instantesDaRegra(r, de, ate) {
-  let horas = r.dia_inteiro ? ["08:00"] : [...new Set(r.horarios)].sort();
-  return datasDaRegra(r, de, ate).flatMap((d) => horas.map((h) => localParaUTC(d, h, r.fuso_horario)));
+function de(r, i, d) {
+  let u = r.dia_inteiro ? ["08:00"] : [...new Set(r.horarios)].sort();
+  return $e(r, i, d).flatMap((b) => u.map((_) => ce(b, _, r.fuso_horario)));
 }
-function limiteDaOcorrencia(previsto_em, r) {
-  if (r.dia_inteiro)
-    return localParaUTC(somarDias(dataLocal(previsto_em, r.fuso_horario), 1), "00:00", r.fuso_horario);
-  return new Date(Date.parse(previsto_em) + 7200000).toISOString();
+function Ao(r, i) {
+  if (i.dia_inteiro)
+    return ce(ro(Fe(r, i.fuso_horario), 1), "00:00", i.fuso_horario);
+  return new Date(Date.parse(r) + 7200000).toISOString();
 }
-function situacaoOcorrencia(o, r, agora = Date.now()) {
-  if (o.status !== "pendente")
-    return o.status;
-  return agora > Date.parse(limiteDaOcorrencia(o.previsto_em, r)) ? "atrasada" : "pendente";
+function To(r, i, d = Date.now()) {
+  if (r.status !== "pendente")
+    return r.status;
+  return d > Date.parse(Ao(r.previsto_em, i)) ? "atrasada" : "pendente";
 }
-function validarRegra(r) {
-  let e = [];
+function le(r) {
+  let i = [];
   if (!/^\d{4}-\d{2}-\d{2}$/.test(r.data_inicio))
-    e.push("Informe a data de início.");
+    i.push("Informe a data de início.");
   if (!r.dia_inteiro && !r.horarios.length)
-    e.push("Informe pelo menos um horário ou marque o dia inteiro.");
-  if (r.horarios.some((h) => !/^([01]\d|2[0-3]):[0-5]\d$/.test(h)))
-    e.push("Há um horário inválido.");
+    i.push("Informe pelo menos um horário ou marque o dia inteiro.");
+  if (r.horarios.some((d) => !/^([01]\d|2[0-3]):[0-5]\d$/.test(d)))
+    i.push("Há um horário inválido.");
   if (r.recorrencia === "semanal" && !r.dias_semana?.length)
-    e.push("Escolha pelo menos um dia da semana.");
+    i.push("Escolha pelo menos um dia da semana.");
   if (r.termino === "data" && (!r.termino_data || r.termino_data < r.data_inicio))
-    e.push("A data de término precisa ser depois do início.");
+    i.push("A data de término precisa ser depois do início.");
   if (r.termino === "quantidade" && !(r.termino_qtd && r.termino_qtd > 0 && r.termino_qtd <= 999))
-    e.push("Informe quantas vezes (de 1 a 999).");
-  return e;
+    i.push("Informe quantas vezes (de 1 a 999).");
+  return i;
 }
-var br = (d) => d.split("-").reverse().join("/");
-function lista(xs) {
-  return xs.length <= 1 ? xs.join("") : `${xs.slice(0, -1).join(", ")} e ${xs[xs.length - 1]}`;
+var Ro = (r) => r.split("-").reverse().join("/");
+function se(r) {
+  return r.length <= 1 ? r.join("") : `${r.slice(0, -1).join(", ")} e ${r[r.length - 1]}`;
 }
-function descreverRegra(r) {
-  let horas = r.dia_inteiro ? ", o dia inteiro" : ` às ${lista([...new Set(r.horarios)].sort())}`, quando;
+function zo(r) {
+  let i = r.dia_inteiro ? ", o dia inteiro" : ` às ${se([...new Set(r.horarios)].sort())}`, d;
   switch (r.recorrencia) {
     case "nenhuma":
-      return `Uma vez, em ${br(r.data_inicio)}${r.dia_inteiro ? horas : "," + horas}`;
+      return `Uma vez, em ${Ro(r.data_inicio)}${r.dia_inteiro ? i : "," + i}`;
     case "diaria":
-      quando = "Todo dia";
+      d = "Todo dia";
       break;
     case "semanal": {
-      let dias = [...r.dias_semana?.length ? r.dias_semana : [diaDaSemana(r.data_inicio)]].sort();
-      if (quando = dias.length === 7 ? "Todo dia" : `${dias.every((d) => d === 0 || d === 6) ? "Todo" : "Toda"} ${lista(dias.map((d) => DIAS_SEMANA[d]))}`, dias.length === 5 && !dias.includes(0) && !dias.includes(6))
-        quando = "De segunda a sexta";
+      let b = [...r.dias_semana?.length ? r.dias_semana : [$o(r.data_inicio)]].sort();
+      if (d = b.length === 7 ? "Todo dia" : `${b.every((_) => _ === 0 || _ === 6) ? "Todo" : "Toda"} ${se(b.map((_) => Me[_]))}`, b.length === 5 && !b.includes(0) && !b.includes(6))
+        d = "De segunda a sexta";
       break;
     }
     case "mensal":
-      quando = `Todo mês no dia ${Number(r.data_inicio.slice(8, 10))}`;
+      d = `Todo mês no dia ${Number(r.data_inicio.slice(8, 10))}`;
       break;
   }
-  let fim = r.termino === "data" && r.termino_data ? ` até ${br(r.termino_data)}` : r.termino === "quantidade" && r.termino_qtd ? `, ${r.termino_qtd} ${r.termino_qtd === 1 ? "vez" : "vezes"}` : "";
-  return `${quando}${horas}, a partir de ${br(r.data_inicio)}${fim}`;
+  let u = r.termino === "data" && r.termino_data ? ` até ${Ro(r.termino_data)}` : r.termino === "quantidade" && r.termino_qtd ? `, ${r.termino_qtd} ${r.termino_qtd === 1 ? "vez" : "vezes"}` : "";
+  return `${d}${i}, a partir de ${Ro(r.data_inicio)}${u}`;
 }
 
 // app/src/data/camposAvaliado.ts
-function campoVisivel(c, valores) {
-  return !c.depende_de || (valores[c.depende_de.campo_id] ?? "") === c.depende_de.valor;
+function ue(r, i) {
+  return !r.depende_de || (i[r.depende_de.campo_id] ?? "") === r.depende_de.valor;
 }
-function validarCampos(campos, entrada = {}) {
-  let ord = [...campos].sort((a, b) => a.ordem - b.ordem), valores = {};
-  for (let c of ord) {
-    let v = (entrada[c.id] ?? "").trim();
-    if (v && c.tipo === "lista")
-      v = (c.opcoes ?? []).find((o) => o.localeCompare(v, "pt-BR", { sensitivity: "base" }) === 0) ?? v;
-    if (v)
-      valores[c.id] = v;
+function jo(r, i = {}) {
+  let d = [...r].sort((_, m) => _.ordem - m.ordem), u = {};
+  for (let _ of d) {
+    let m = (i[_.id] ?? "").trim();
+    if (m && _.tipo === "lista")
+      m = (_.opcoes ?? []).find((h) => h.localeCompare(m, "pt-BR", { sensitivity: "base" }) === 0) ?? m;
+    if (m)
+      u[_.id] = m;
   }
-  let erros = [];
-  for (let mudou = !0;mudou; ) {
-    mudou = !1;
-    for (let c of ord)
-      if (valores[c.id] !== void 0 && !campoVisivel(c, valores))
-        delete valores[c.id], mudou = !0;
+  let b = [];
+  for (let _ = !0;_; ) {
+    _ = !1;
+    for (let m of d)
+      if (u[m.id] !== void 0 && !ue(m, u))
+        delete u[m.id], _ = !0;
   }
-  for (let c of ord) {
-    if (!campoVisivel(c, valores))
+  for (let _ of d) {
+    if (!ue(_, u))
       continue;
-    let v = valores[c.id];
-    if (!v) {
-      if (c.obrigatorio)
-        erros.push(`${c.nome} é obrigatório`);
+    let m = u[_.id];
+    if (!m) {
+      if (_.obrigatorio)
+        b.push(`${_.nome} é obrigatório`);
       continue;
     }
-    if (c.tipo === "lista" && !(c.opcoes ?? []).includes(v))
-      erros.push(`${c.nome}: "${v}" não está entre as opções (${(c.opcoes ?? []).join(", ")})`);
-    if (c.tipo === "numero" && !Number.isFinite(Number(v.replace(/\./g, "").replace(",", "."))))
-      erros.push(`${c.nome}: "${v}" não é um número`);
-    if (c.tipo === "data" && !/^\d{4}-\d{2}-\d{2}$/.test(v)) {
-      let m = /^(\d{2})\/(\d{2})\/(\d{4})$/.exec(v);
-      if (m)
-        valores[c.id] = `${m[3]}-${m[2]}-${m[1]}`;
+    if (_.tipo === "lista" && !(_.opcoes ?? []).includes(m))
+      b.push(`${_.nome}: "${m}" não está entre as opções (${(_.opcoes ?? []).join(", ")})`);
+    if (_.tipo === "numero" && !Number.isFinite(Number(m.replace(/\./g, "").replace(",", "."))))
+      b.push(`${_.nome}: "${m}" não é um número`);
+    if (_.tipo === "data" && !/^\d{4}-\d{2}-\d{2}$/.test(m)) {
+      let h = /^(\d{2})\/(\d{2})\/(\d{4})$/.exec(m);
+      if (h)
+        u[_.id] = `${h[3]}-${h[2]}-${h[1]}`;
       else
-        erros.push(`${c.nome}: use a data como dd/mm/aaaa`);
+        b.push(`${_.nome}: use a data como dd/mm/aaaa`);
     }
   }
-  return { valores, erros };
+  return { valores: u, erros: b };
 }
-function validarDefinicaoCampos(campos) {
-  let erros = [], nomes = /* @__PURE__ */ new Set;
-  for (let c of campos) {
-    let n = c.nome.trim().toLowerCase();
-    if (!n)
-      erros.push("Há um campo sem nome.");
-    else if (nomes.has(n))
-      erros.push(`Já existe um campo chamado "${c.nome}".`);
-    if (nomes.add(n), ["nome", "código", "codigo", "cnpj", "e-mail", "email", "telefone", "endereço", "endereco"].includes(n))
-      erros.push(`"${c.nome}" já é um campo padrão do cadastro.`);
-    if (c.tipo === "lista" && (c.opcoes ?? []).filter((o) => o.trim()).length < 2)
-      erros.push(`${c.nome}: a lista precisa de pelo menos 2 opções.`);
-    if (c.depende_de) {
-      let alvo = campos.find((x) => x.id === c.depende_de.campo_id);
-      if (!alvo || alvo.tipo !== "lista")
-        erros.push(`${c.nome}: só pode depender de um campo do tipo lista.`);
-      else if (!(alvo.opcoes ?? []).includes(c.depende_de.valor))
-        erros.push(`${c.nome}: "${c.depende_de.valor}" não é opção de ${alvo.nome}.`);
-      let vistos = /* @__PURE__ */ new Set([c.id]), cur = alvo;
-      while (cur?.depende_de) {
-        if (vistos.has(cur.id)) {
-          erros.push(`${c.nome}: dependência circular.`);
+function me(r) {
+  let i = [], d = /* @__PURE__ */ new Set;
+  for (let u of r) {
+    let b = u.nome.trim().toLowerCase();
+    if (!b)
+      i.push("Há um campo sem nome.");
+    else if (d.has(b))
+      i.push(`Já existe um campo chamado "${u.nome}".`);
+    if (d.add(b), ["nome", "código", "codigo", "cnpj", "e-mail", "email", "telefone", "endereço", "endereco"].includes(b))
+      i.push(`"${u.nome}" já é um campo padrão do cadastro.`);
+    if (u.tipo === "lista" && (u.opcoes ?? []).filter((_) => _.trim()).length < 2)
+      i.push(`${u.nome}: a lista precisa de pelo menos 2 opções.`);
+    if (u.depende_de) {
+      let _ = r.find((y) => y.id === u.depende_de.campo_id);
+      if (!_ || _.tipo !== "lista")
+        i.push(`${u.nome}: só pode depender de um campo do tipo lista.`);
+      else if (!(_.opcoes ?? []).includes(u.depende_de.valor))
+        i.push(`${u.nome}: "${u.depende_de.valor}" não é opção de ${_.nome}.`);
+      let m = /* @__PURE__ */ new Set([u.id]), h = _;
+      while (h?.depende_de) {
+        if (m.has(h.id)) {
+          i.push(`${u.nome}: dependência circular.`);
           break;
         }
-        if (vistos.add(cur.id), cur = campos.find((x) => x.id === cur.depende_de.campo_id), cur && vistos.has(cur.id)) {
-          erros.push(`${c.nome}: dependência circular.`);
+        if (m.add(h.id), h = r.find((y) => y.id === h.depende_de.campo_id), h && m.has(h.id)) {
+          i.push(`${u.nome}: dependência circular.`);
           break;
         }
       }
     }
   }
-  return [...new Set(erros)];
+  return [...new Set(i)];
 }
 
 // app/src/data/seed.ts
-var ORG = { id: "org-1", nome: "Distribuidora Exemplo", fuso_horario: "America/Rio_Branco" }, TODAS_ACOES = [
+var eo = { id: "org-1", nome: "Distribuidora Exemplo", fuso_horario: "America/Rio_Branco" }, Te = [
   "gerenciar_formularios",
   "aplicar",
   "editar_inspecao",
@@ -712,17 +712,17 @@ var ORG = { id: "org-1", nome: "Distribuidora Exemplo", fuso_horario: "America/R
   "gerenciar_permissoes",
   "aprovar",
   "ver_painel"
-], FUNCOES = [
-  { id: "fn-admin", nome: "Administrador", acoes: TODAS_ACOES, sistema: !0 },
+], Vo = [
+  { id: "fn-admin", nome: "Administrador", acoes: Te, sistema: !0 },
   { id: "fn-qualidade", nome: "Analista de qualidade", acoes: ["gerenciar_formularios", "aplicar", "editar_inspecao", "ver_todas_inspecoes", "gerenciar_avaliados", "gerenciar_planos", "aprovar", "ver_painel"] },
   { id: "fn-supervisor", nome: "Supervisor de lojas", acoes: ["aplicar", "ver_painel", "aprovar"] },
   { id: "fn-aplicador", nome: "Aplicador", acoes: ["aplicar"] }
-], LIVRE = { formularios: "todos", avaliados: "todos", ver_membros: [], ver_equipes: [] };
-var MEMBROS_REG = [
-  { id: "m-rogerio", org_id: ORG.id, nome: "Rogério Marinho", email: "rogerio@exemplo.com", funcao_id: "fn-admin", is_master: !0, ativo: !0, acesso: LIVRE, created_at: "2026-09-01T12:00:00.000Z" },
+], ze = { formularios: "todos", avaliados: "todos", ver_membros: [], ver_equipes: [] };
+var Uo = [
+  { id: "m-rogerio", org_id: eo.id, nome: "Rogério Marinho", email: "rogerio@exemplo.com", funcao_id: "fn-admin", is_master: !0, ativo: !0, acesso: ze, created_at: "2026-09-01T12:00:00.000Z" },
   {
     id: "m-ana",
-    org_id: ORG.id,
+    org_id: eo.id,
     nome: "Ana Paula Souza",
     email: "ana@exemplo.com",
     funcao_id: "fn-aplicador",
@@ -733,7 +733,7 @@ var MEMBROS_REG = [
   },
   {
     id: "m-carlos",
-    org_id: ORG.id,
+    org_id: eo.id,
     nome: "Carlos Eduardo Lima",
     email: "carlos@exemplo.com",
     funcao_id: "fn-supervisor",
@@ -742,49 +742,49 @@ var MEMBROS_REG = [
     acesso: { formularios: ["f-flv"], avaliados: ["a-bosque", "a-centro"], ver_membros: [], ver_equipes: ["eq-lojas"] },
     created_at: "2026-09-01T12:00:00.000Z"
   }
-], EQUIPES = [
-  { id: "eq-lojas", org_id: ORG.id, nome: "Equipe de lojas", membros: ["m-ana"], acesso: { formularios: [], avaliados: [], ver_membros: [], ver_equipes: [] } }
+], Bo = [
+  { id: "eq-lojas", org_id: eo.id, nome: "Equipe de lojas", membros: ["m-ana"], acesso: { formularios: [], avaliados: [], ver_membros: [], ver_equipes: [] } }
 ];
-var av = (id, nome, codigo, endereco, email) => ({
-  id,
-  org_id: ORG.id,
-  nome,
-  codigo_externo: codigo,
-  endereco,
-  email,
+var No = (r, i, d, u, b) => ({
+  id: r,
+  org_id: eo.id,
+  nome: i,
+  codigo_externo: d,
+  endereco: u,
+  email: b,
   ativo: !0,
   created_at: "2026-10-01T12:00:00.000Z",
   updated_at: "2026-10-01T12:00:00.000Z"
-}), AVALIADOS = [
-  av("a-bosque", "Loja 01 — Bosque", "LJ01", "Av. Ceará, 1500 — Bosque", "gerencia.lj01@exemplo.com"),
-  av("a-centro", "Loja 02 — Centro", "LJ02", "Rua Marechal Deodoro, 210 — Centro", "gerencia.lj02@exemplo.com"),
-  av("a-doca3", "CD — Doca 3", "CD03", "Estrada do Aeroporto, km 3")
+}), ko = [
+  No("a-bosque", "Loja 01 — Bosque", "LJ01", "Av. Ceará, 1500 — Bosque", "gerencia.lj01@exemplo.com"),
+  No("a-centro", "Loja 02 — Centro", "LJ02", "Rua Marechal Deodoro, 210 — Centro", "gerencia.lj02@exemplo.com"),
+  No("a-doca3", "CD — Doca 3", "CD03", "Estrada do Aeroporto, km 3")
 ];
-AVALIADOS[0].campos = { "cp-regional": "Capital", "cp-formato": "Supermercado", "cp-gerente": "Júlia Andrade" };
-AVALIADOS[1].campos = { "cp-regional": "Capital", "cp-formato": "Express", "cp-gerente": "Paulo Neri" };
-AVALIADOS[2].campos = { "cp-regional": "Capital", "cp-formato": "Centro de distribuição" };
-var CAMPOS_AVALIADO = [
+ko[0].campos = { "cp-regional": "Capital", "cp-formato": "Supermercado", "cp-gerente": "Júlia Andrade" };
+ko[1].campos = { "cp-regional": "Capital", "cp-formato": "Express", "cp-gerente": "Paulo Neri" };
+ko[2].campos = { "cp-regional": "Capital", "cp-formato": "Centro de distribuição" };
+var pe = [
   { id: "cp-regional", nome: "Regional", tipo: "lista", opcoes: ["Capital", "Interior"], obrigatorio: !1, na_lista: !0, ordem: 1 },
   { id: "cp-cidade", nome: "Cidade", tipo: "texto", obrigatorio: !0, na_lista: !1, depende_de: { campo_id: "cp-regional", valor: "Interior" }, ordem: 2 },
   { id: "cp-formato", nome: "Formato", tipo: "lista", opcoes: ["Supermercado", "Express", "Atacarejo", "Centro de distribuição"], obrigatorio: !1, na_lista: !0, ordem: 3 },
   { id: "cp-gerente", nome: "Gerente", tipo: "texto", obrigatorio: !1, na_lista: !1, ordem: 4 }
-], CLASSES = [
+], fe = [
   { nome: "Ruim", cor: "rank-bad", min: 0, max: 69.99 },
   { nome: "Regular", cor: "rank-mid", min: 70, max: 84.99 },
   { nome: "Bom", cor: "rank-good", min: 85, max: 100 }
-], sn = (key, titulo, extra = {}) => ({
-  key,
-  titulo,
+], Lo = (r, i, d = {}) => ({
+  key: r,
+  titulo: i,
   tipo: "escolha_simples",
   obrigatoria: !0,
   opcoes: [
-    { key: `${key}-sim`, texto: "Sim", pontos: 10, conforme: !0 },
-    { key: `${key}-nao`, texto: "Não", pontos: 0, conforme: !1 },
-    { key: `${key}-na`, texto: "Não se aplica", na: !0 }
+    { key: `${r}-sim`, texto: "Sim", pontos: 10, conforme: !0 },
+    { key: `${r}-nao`, texto: "Não", pontos: 0, conforme: !1 },
+    { key: `${r}-na`, texto: "Não se aplica", na: !0 }
   ],
-  ...extra
-}), DEF_FLV = {
-  config: { calcular_nota: !0, casas_decimais: 1, classificacoes: CLASSES, geo: "off", reincidencia_meses: 3, relatorio: { emails: { avaliado: !0, extras: ["qualidade@exemplo.com"] } } },
+  ...d
+}), je = {
+  config: { calcular_nota: !0, casas_decimais: 1, classificacoes: fe, geo: "off", reincidencia_meses: 3, relatorio: { emails: { avaliado: !0, extras: ["qualidade@exemplo.com"] } } },
   topicos: [
     {
       key: "t-venda",
@@ -803,7 +803,7 @@ var CAMPOS_AVALIADO = [
             { key: "q-vencidos-nao", texto: "Não, encontrei vencidos", pontos: 0, conforme: !1, desconto: { pct: 50, escopo: "topico" } }
           ]
         },
-        sn("q-preco", "Todos os itens da bancada têm preço visível?", { nc_exige: { observacao: !0 } }),
+        Lo("q-preco", "Todos os itens da bancada têm preço visível?", { nc_exige: { observacao: !0 } }),
         {
           key: "q-gondola",
           titulo: "Condição das bancadas",
@@ -835,7 +835,7 @@ var CAMPOS_AVALIADO = [
           foto_obrigatoria: !0,
           ajuda: { texto: "Leia o termômetro da porta e tire foto do visor." }
         },
-        sn("q-porta", "A porta da câmara veda sem frestas?", { plano_acao_modelo_id: "pm-manutencao" }),
+        Lo("q-porta", "A porta da câmara veda sem frestas?", { plano_acao_modelo_id: "pm-manutencao" }),
         {
           key: "q-porta-motivo",
           titulo: "O que está causando a fresta?",
@@ -854,15 +854,15 @@ var CAMPOS_AVALIADO = [
       ]
     }
   ]
-}, DEF_RECEB = {
-  config: { calcular_nota: !0, casas_decimais: 1, classificacoes: CLASSES },
+}, Ne = {
+  config: { calcular_nota: !0, casas_decimais: 1, classificacoes: fe },
   topicos: [
     {
       key: "r-doc",
       titulo: "Documentação",
       questoes: [
         { key: "r-nf", titulo: "Número da nota fiscal", tipo: "texto", obrigatoria: !0, texto: { leitura_codigo: !0 } },
-        sn("r-lacre", "O lacre do baú chegou intacto?", { nc_exige: { foto: !0 } })
+        Lo("r-lacre", "O lacre do baú chegou intacto?", { nc_exige: { foto: !0 } })
       ]
     },
     {
@@ -882,11 +882,11 @@ var CAMPOS_AVALIADO = [
       ]
     }
   ]
-}, FORMULARIOS = [
-  { id: "f-flv", org_id: ORG.id, nome: "Checklist FLV e perecíveis", rascunho: DEF_FLV, versao_publicada_id: "fv-flv-1", avaliados_vinculados: ["a-bosque", "a-centro"], arquivado: !1, created_at: "2026-10-01T12:00:00.000Z", updated_at: "2026-10-01T12:00:00.000Z" },
-  { id: "f-receb", org_id: ORG.id, nome: "Recebimento de refrigerados", rascunho: DEF_RECEB, versao_publicada_id: "fv-receb-1", avaliados_vinculados: ["a-doca3"], arquivado: !1, created_at: "2026-10-01T12:00:00.000Z", updated_at: "2026-10-01T12:00:00.000Z" }
+}, Le = [
+  { id: "f-flv", org_id: eo.id, nome: "Checklist FLV e perecíveis", rascunho: je, versao_publicada_id: "fv-flv-1", avaliados_vinculados: ["a-bosque", "a-centro"], arquivado: !1, created_at: "2026-10-01T12:00:00.000Z", updated_at: "2026-10-01T12:00:00.000Z" },
+  { id: "f-receb", org_id: eo.id, nome: "Recebimento de refrigerados", rascunho: Ne, versao_publicada_id: "fv-receb-1", avaliados_vinculados: ["a-doca3"], arquivado: !1, created_at: "2026-10-01T12:00:00.000Z", updated_at: "2026-10-01T12:00:00.000Z" }
 ];
-var HISTORICO = [
+var _e = [
   {
     client_uuid: "seed-0001",
     formulario_id: "f-flv",
@@ -920,10 +920,10 @@ var HISTORICO = [
       "r-temp": { numero: 8.5, observacao: "Caminhão chegou com o baú aberto." }
     }
   }
-], PLANOS_MODELO = [
+], ve = [
   {
     id: "pm-retirada",
-    org_id: ORG.id,
+    org_id: eo.id,
     nome: "Retirada e descarte",
     agrupamento: "por_inspecao",
     prazo_dias: 1,
@@ -950,7 +950,7 @@ var HISTORICO = [
   },
   {
     id: "pm-manutencao",
-    org_id: ORG.id,
+    org_id: eo.id,
     nome: "Manutenção corretiva",
     agrupamento: "por_nc",
     prazo_dias: 5,
@@ -965,28 +965,28 @@ var HISTORICO = [
     ] }] }
   }
 ];
-function agendamentosIniciais(hoje) {
-  let base = { org_id: ORG.id, fuso_horario: ORG.fuso_horario, ativo: !0, materializado_ate: null, criado_por: "m-rogerio", created_at: "2026-10-01T12:00:00.000Z", updated_at: "2026-10-01T12:00:00.000Z" };
+function ge(r) {
+  let i = { org_id: eo.id, fuso_horario: eo.fuso_horario, ativo: !0, materializado_ate: null, criado_por: "m-rogerio", created_at: "2026-10-01T12:00:00.000Z", updated_at: "2026-10-01T12:00:00.000Z" };
   return [
     {
-      ...base,
+      ...i,
       id: "ag-flv-centro",
       formulario_id: "f-flv",
       avaliado_id: "a-centro",
       responsaveis: ["m-ana"],
-      data_inicio: hoje,
+      data_inicio: r,
       horarios: [],
       dia_inteiro: !0,
       recorrencia: "diaria",
       termino: "nunca"
     },
     {
-      ...base,
+      ...i,
       id: "ag-receb-doca",
       formulario_id: "f-receb",
       avaliado_id: "a-doca3",
       responsaveis: ["m-rogerio"],
-      data_inicio: hoje,
+      data_inicio: r,
       horarios: ["07:30"],
       dia_inteiro: !1,
       recorrencia: "semanal",
@@ -995,185 +995,185 @@ function agendamentosIniciais(hoje) {
     }
   ];
 }
-function prng(seed) {
+function Ve(r) {
   return () => {
-    seed = seed + 1831565813 | 0;
-    let t = Math.imul(seed ^ seed >>> 15, 1 | seed);
-    return t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t, ((t ^ t >>> 14) >>> 0) / 4294967296;
+    r = r + 1831565813 | 0;
+    let i = Math.imul(r ^ r >>> 15, 1 | r);
+    return i = i + Math.imul(i ^ i >>> 7, 61 | i) ^ i, ((i ^ i >>> 14) >>> 0) / 4294967296;
   };
 }
-function historicoDemo(hoje) {
-  let r = prng(20261014), out = [], dia0 = Date.parse(hoje + "T12:00:00Z") - 7257600000, n = 0;
-  for (let semana = 0;semana < 12; semana++) {
-    let t = semana / 11;
-    for (let [av, risco, dias] of [["a-bosque", 0.15 + 0.35 * t, [1, 4]], ["a-centro", 0.45 - 0.35 * t, [2, 5]], ["a-doca3", 0.25, [1, 3]]])
-      for (let d of dias) {
-        let ini = dia0 + (semana * 7 + d) * 86400000 + Math.floor(r() * 6) * 3600000;
-        if (ini >= Date.parse(hoje + "T00:00:00Z"))
+function he(r) {
+  let i = Ve(20261014), d = [], u = Date.parse(r + "T12:00:00Z") - 7257600000, b = 0;
+  for (let _ = 0;_ < 12; _++) {
+    let m = _ / 11;
+    for (let [h, y, v] of [["a-bosque", 0.15 + 0.35 * m, [1, 4]], ["a-centro", 0.45 - 0.35 * m, [2, 5]], ["a-doca3", 0.25, [1, 3]]])
+      for (let f of v) {
+        let p = u + (_ * 7 + f) * 86400000 + Math.floor(i() * 6) * 3600000;
+        if (p >= Date.parse(r + "T00:00:00Z"))
           continue;
-        let p = (x) => r() < x, id = `demo-${String(++n).padStart(3, "0")}`;
-        if (av === "a-doca3") {
-          let temp = Math.round((3 + r() * (p(risco) ? 7 : 3.5)) * 10) / 10, lacreOk = !p(risco / 2);
-          out.push({
-            client_uuid: id,
+        let x = (z) => i() < z, k = `demo-${String(++b).padStart(3, "0")}`;
+        if (h === "a-doca3") {
+          let z = Math.round((3 + i() * (x(y) ? 7 : 3.5)) * 10) / 10, lo = !x(y / 2);
+          d.push({
+            client_uuid: k,
             formulario_id: "f-receb",
             formulario_versao_id: "fv-receb-1",
-            avaliado_id: av,
+            avaliado_id: h,
             responsavel_id: "m-rogerio",
-            iniciada_em: new Date(ini).toISOString(),
-            finalizada_em: new Date(ini + 900000).toISOString(),
+            iniciada_em: new Date(p).toISOString(),
+            finalizada_em: new Date(p + 900000).toISOString(),
             respostas: {
-              "r-nf": { texto: String(1e5 + Math.floor(r() * 899999)) },
-              "r-lacre": lacreOk ? { opcoes: ["r-lacre-sim"] } : { opcoes: ["r-lacre-nao"], fotos: 1 },
-              "r-bruto": { numero: 12 + Math.round(r() * 30) / 10 },
+              "r-nf": { texto: String(1e5 + Math.floor(i() * 899999)) },
+              "r-lacre": lo ? { opcoes: ["r-lacre-sim"] } : { opcoes: ["r-lacre-nao"], fotos: 1 },
+              "r-bruto": { numero: 12 + Math.round(i() * 30) / 10 },
               "r-tara": { numero: 0.6 },
-              "r-temp": temp > 7 ? { numero: temp, observacao: "Acima do limite na chegada." } : { numero: temp }
+              "r-temp": z > 7 ? { numero: z, observacao: "Acima do limite na chegada." } : { numero: z }
             }
           });
           continue;
         }
-        let temp = Math.round((1 + r() * (p(risco) ? 7 : 3)) * 10) / 10, venc = p(risco), preco = p(risco * 0.8), porta = p(risco * 0.6), avaria = p(risco * 0.7);
-        out.push({
-          client_uuid: id,
+        let I = Math.round((1 + i() * (x(y) ? 7 : 3)) * 10) / 10, D = x(y), L = x(y * 0.8), H = x(y * 0.6), Q = x(y * 0.7);
+        d.push({
+          client_uuid: k,
           formulario_id: "f-flv",
           formulario_versao_id: "fv-flv-1",
-          avaliado_id: av,
-          responsavel_id: p(0.5) ? "m-ana" : "m-carlos",
-          iniciada_em: new Date(ini).toISOString(),
-          finalizada_em: new Date(ini + 1500000).toISOString(),
+          avaliado_id: h,
+          responsavel_id: x(0.5) ? "m-ana" : "m-carlos",
+          iniciada_em: new Date(p).toISOString(),
+          finalizada_em: new Date(p + 1500000).toISOString(),
           respostas: {
-            "q-vencidos": venc ? { opcoes: ["q-vencidos-nao"], fotos: 1, observacao: "Lote vencido na bancada." } : { opcoes: ["q-vencidos-sim"] },
-            "q-preco": preco ? { opcoes: ["q-preco-nao"], observacao: "Itens sem etiqueta." } : { opcoes: ["q-preco-sim"] },
-            "q-gondola": { opcoes: avaria ? ["q-gondola-limpa", "q-gondola-avaria"] : ["q-gondola-limpa", "q-gondola-abastecida"] },
-            "q-temp": temp > 4 ? { numero: temp, fotos: 1, observacao: "Fora da faixa." } : { numero: temp, fotos: 1 },
-            "q-porta": porta ? { opcoes: ["q-porta-nao"] } : { opcoes: ["q-porta-sim"] },
-            ...porta ? { "q-porta-motivo": { texto: "Borracha ressecada." } } : {},
+            "q-vencidos": D ? { opcoes: ["q-vencidos-nao"], fotos: 1, observacao: "Lote vencido na bancada." } : { opcoes: ["q-vencidos-sim"] },
+            "q-preco": L ? { opcoes: ["q-preco-nao"], observacao: "Itens sem etiqueta." } : { opcoes: ["q-preco-sim"] },
+            "q-gondola": { opcoes: Q ? ["q-gondola-limpa", "q-gondola-avaria"] : ["q-gondola-limpa", "q-gondola-abastecida"] },
+            "q-temp": I > 4 ? { numero: I, fotos: 1, observacao: "Fora da faixa." } : { numero: I, fotos: 1 },
+            "q-porta": H ? { opcoes: ["q-porta-nao"] } : { opcoes: ["q-porta-sim"] },
+            ...H ? { "q-porta-motivo": { texto: "Borracha ressecada." } } : {},
             "q-ass": { assinatura: "demo" }
           }
         });
       }
   }
-  return out.sort((a, b) => a.finalizada_em.localeCompare(b.finalizada_em));
+  return d.sort((_, m) => _.finalizada_em.localeCompare(m.finalizada_em));
 }
 
 // app/src/data/nucleo.ts
-function pode(m, acao) {
-  return m.is_master || m.acoes.includes(acao);
+function Y(r, i) {
+  return r.is_master || r.acoes.includes(i);
 }
-function podeVerInspecao(m, i) {
-  return pode(m, "ver_todas_inspecoes") || i.responsavel_id === m.id || m.ve_inspecoes_de.includes(i.responsavel_id);
+function bo(r, i) {
+  return Y(r, "ver_todas_inspecoes") || i.responsavel_id === r.id || r.ve_inspecoes_de.includes(i.responsavel_id);
 }
-function criarServidor(amb) {
-  let ORG = amb.org, STATE_KEY = "srv:state", SESSAO_KEY = "inspeta:sessao", MEMBROS_KEY = "inspeta:membros", uuid = () => crypto.randomUUID(), nowISO = () => (/* @__PURE__ */ new Date()).toISOString(), clone = (v) => structuredClone(v);
-  async function load() {
-    let s = await amb.carregar();
-    if (s) {
-      if (s.planosModelo ??= clone(PLANOS_MODELO), s.planos ??= [], s.emails ??= [], s.membros ??= clone(MEMBROS_REG), s.funcoes ??= clone(FUNCOES), s.equipes ??= clone(EQUIPES), s.agendamentos ??= agendamentosIniciais(hojeNaOrg()), s.ocorrencias ??= [], s.aprovacoes ??= [], s.camposAvaliado ??= clone(CAMPOS_AVALIADO), amb.local.get("inspeta:membros") === null)
-        publicarMembros(s);
-      return s;
+function be(r) {
+  let i = r.org, d = "srv:state", u = "inspeta:sessao", b = "inspeta:membros", _ = () => crypto.randomUUID(), m = () => (/* @__PURE__ */ new Date()).toISOString(), h = (a) => structuredClone(a);
+  async function y() {
+    let a = await r.carregar();
+    if (a) {
+      if (a.planosModelo ??= h(ve), a.planos ??= [], a.emails ??= [], a.membros ??= h(Uo), a.funcoes ??= h(Vo), a.equipes ??= h(Bo), a.agendamentos ??= ge(U()), a.ocorrencias ??= [], a.aprovacoes ??= [], a.camposAvaliado ??= h(pe), r.local.get("inspeta:membros") === null)
+        f(a);
+      return a;
     }
-    let fresh = amb.estadoInicial();
-    if (fresh.inspecoes.length === 0 && fresh.formularios.some((f) => f.id === "f-flv"))
-      for (let h of HISTORICO) {
-        let m = membroEm(fresh, h.responsavel_id);
-        processar(fresh, m, { ...h, status: "completa", anexos: [], device_id: "seed" }, h.finalizada_em);
+    let o = r.estadoInicial();
+    if (o.inspecoes.length === 0 && o.formularios.some((e) => e.id === "f-flv"))
+      for (let e of _e) {
+        let n = I(o, e.responsavel_id);
+        lo(o, n, { ...e, status: "completa", anexos: [], device_id: "seed" }, e.finalizada_em);
       }
-    return await amb.gravar(fresh), fresh;
+    return await r.gravar(o), o;
   }
-  async function save(s, topic) {
-    if (await amb.gravar(s), topic === "membros")
-      publicarMembros(s), amb.aviso("sessao");
-    amb.aviso(topic);
+  async function v(a, o) {
+    if (await r.gravar(a), o === "membros")
+      f(a), r.aviso("sessao");
+    r.aviso(o);
   }
-  function publicarMembros(s) {
-    amb.local.set("inspeta:membros", JSON.stringify(resolverMembros(s.membros, s.funcoes, s.equipes)));
+  function f(a) {
+    r.local.set("inspeta:membros", JSON.stringify(so(a.membros, a.funcoes, a.equipes)));
   }
-  let cacheRaw = null, cache = [];
-  function membrosCache() {
-    let raw = amb.local.get("inspeta:membros") ?? "seed";
-    if (raw !== cacheRaw)
-      cache = raw === "seed" ? resolverMembros(MEMBROS_REG, FUNCOES, EQUIPES) : JSON.parse(raw), cacheRaw = raw;
-    return cache;
+  let p = null, x = [];
+  function k() {
+    let a = r.local.get("inspeta:membros") ?? "seed";
+    if (a !== p)
+      x = a === "seed" ? so(Uo, Vo, Bo) : JSON.parse(a), p = a;
+    return x;
   }
-  function membroEm(s, id) {
-    let m = resolverMembros(s.membros, s.funcoes, s.equipes).find((x) => x.id === id);
-    if (!m || !m.ativo)
+  function I(a, o) {
+    let e = so(a.membros, a.funcoes, a.equipes).find((n) => n.id === o);
+    if (!e || !e.ativo)
       throw Error("Sessão inválida");
-    return m;
+    return e;
   }
-  function mutate(topic, fn) {
-    return amb.exclusivo(async () => {
-      let s = await load(), out = fn(s);
-      return await save(s, topic), out;
+  function D(a, o) {
+    return r.exclusivo(async () => {
+      let e = await y(), n = o(e);
+      return await v(e, a), n;
     });
   }
-  function log(s, inspecao_id, membro_id, acao, dados = {}, em = nowISO()) {
-    s.eventos.push({ id: ++s.eventoSeq, inspecao_id, membro_id, acao, dados, em });
+  function L(a, o, e, n, s = {}, t = m()) {
+    a.eventos.push({ id: ++a.eventoSeq, inspecao_id: o, membro_id: e, acao: n, dados: s, em: t });
   }
-  function anteriores(s, formulario_id, avaliado_id, excetoClient) {
-    let meses = s.formularios.find((f) => f.id === formulario_id)?.rascunho.config.reincidencia_meses ?? 3, limite = Date.now() - meses * 31 * 86400000, ult = s.inspecoes.filter((i) => i.formulario_id === formulario_id && i.avaliado_id === avaliado_id && i.status !== "rascunho" && i.client_uuid !== excetoClient && i.finalizada_em && Date.parse(i.finalizada_em) >= limite).sort((a, b) => (b.finalizada_em ?? "").localeCompare(a.finalizada_em ?? ""))[0];
-    if (!ult)
+  function H(a, o, e, n) {
+    let t = a.formularios.find((A) => A.id === o)?.rascunho.config.reincidencia_meses ?? 3, l = Date.now() - t * 31 * 86400000, c = a.inspecoes.filter((A) => A.formulario_id === o && A.avaliado_id === e && A.status !== "rascunho" && A.client_uuid !== n && A.finalizada_em && Date.parse(A.finalizada_em) >= l).sort((A, w) => (w.finalizada_em ?? "").localeCompare(A.finalizada_em ?? ""))[0];
+    if (!c)
       return {};
-    let out = {};
-    for (let [k, r] of Object.entries(ult.resultado.questoes))
-      out[k] = { conforme: r.conforme, resposta: ult.respostas[k] };
-    return out;
+    let g = {};
+    for (let [A, w] of Object.entries(c.resultado.questoes))
+      g[A] = { conforme: w.conforme, resposta: c.respostas[A] };
+    return g;
   }
-  function questoesPreenchidas(def) {
-    return def.topicos.flatMap((t) => t.questoes).filter((q) => q.preenchimento_automatico || q.preenchimento_unico);
+  function Q(a) {
+    return a.topicos.flatMap((o) => o.questoes).filter((o) => o.preenchimento_automatico || o.preenchimento_unico);
   }
-  function ultimasRespostas(s, def, formulario_id, avaliado_id, excetoClient) {
-    let qs = questoesPreenchidas(def);
-    if (!qs.length)
+  function z(a, o, e, n, s) {
+    let t = Q(o);
+    if (!t.length)
       return {};
-    let out = {}, hist = s.inspecoes.filter((i) => i.formulario_id === formulario_id && i.avaliado_id === avaliado_id && i.status !== "rascunho" && i.client_uuid !== excetoClient).sort((a, b) => (b.finalizada_em ?? "").localeCompare(a.finalizada_em ?? ""));
-    for (let q of qs) {
-      let r = hist.find((i) => {
-        let a = i.respostas[q.key];
-        return a && (a.opcoes?.length || a.numero != null || a.texto || a.data || a.na);
-      })?.respostas[q.key];
-      if (r)
-        out[q.key] = { opcoes: r.opcoes, numero: r.numero, texto: r.texto, data: r.data, na: r.na };
+    let l = {}, c = a.inspecoes.filter((g) => g.formulario_id === e && g.avaliado_id === n && g.status !== "rascunho" && g.client_uuid !== s).sort((g, A) => (A.finalizada_em ?? "").localeCompare(g.finalizada_em ?? ""));
+    for (let g of t) {
+      let A = c.find((w) => {
+        let q = w.respostas[g.key];
+        return q && (q.opcoes?.length || q.numero != null || q.texto || q.data || q.na);
+      })?.respostas[g.key];
+      if (A)
+        l[g.key] = { opcoes: A.opcoes, numero: A.numero, texto: A.texto, data: A.data, na: A.na };
     }
-    return out;
+    return l;
   }
-  function processar(s, m, e, agora = nowISO()) {
-    let versao = s.versoes.find((v) => v.id === e.formulario_versao_id && v.formulario_id === e.formulario_id);
-    if (!versao)
+  function lo(a, o, e, n = m()) {
+    let s = a.versoes.find((F) => F.id === e.formulario_versao_id && F.formulario_id === e.formulario_id);
+    if (!s)
       return { client_uuid: e.client_uuid, ok: !1, erro: "invalido", mensagem: "Versão do formulário não encontrada." };
-    if (!pode(m, "aplicar") || !podeFormulario(m, e.formulario_id) || !podeAvaliado(m, e.avaliado_id))
+    if (!Y(o, "aplicar") || !W(o, e.formulario_id) || !N(o, e.avaliado_id))
       return { client_uuid: e.client_uuid, ok: !1, erro: "sem_permissao", mensagem: "Você não tem permissão para este formulário." };
-    let existente = s.inspecoes.find((i) => i.client_uuid === e.client_uuid);
-    if (existente) {
-      if (existente.responsavel_id !== m.id)
+    let t = a.inspecoes.find((F) => F.client_uuid === e.client_uuid);
+    if (t) {
+      if (t.responsavel_id !== o.id)
         return { client_uuid: e.client_uuid, ok: !1, erro: "conflito", mensagem: "Inspeção pertence a outra pessoa." };
-      if (existente.status !== "rascunho")
-        return { client_uuid: e.client_uuid, ok: !0, id: existente.id, nota_pct: existente.nota_pct, classificacao: existente.classificacao };
+      if (t.status !== "rascunho")
+        return { client_uuid: e.client_uuid, ok: !0, id: t.id, nota_pct: t.nota_pct, classificacao: t.classificacao };
     }
-    let fixas = ultimasRespostas(s, versao.definicao, e.formulario_id, e.avaliado_id, e.client_uuid);
-    for (let q of questoesPreenchidas(versao.definicao))
-      if (q.preenchimento_unico && fixas[q.key])
-        e = { ...e, respostas: { ...e.respostas, [q.key]: { ...e.respostas[q.key], ...fixas[q.key] } } };
-    let prev = anteriores(s, e.formulario_id, e.avaliado_id, e.client_uuid), ev = evaluateForm(versao.definicao, e.respostas, prev);
-    if (e.status === "completa" && ev.pendentes.length)
-      return { client_uuid: e.client_uuid, ok: !1, erro: "invalido", mensagem: `${ev.pendentes.length} questão(ões) com pendência.` };
-    let resultado = {
-      nao_conformidades: ev.nao_conformidades,
-      questoes: Object.fromEntries(Object.values(ev.questoes).filter((q) => q.visivel).map((q) => [q.key, {
-        conforme: q.conforme,
-        pontos: q.pontos,
-        pontos_max: q.pontos_max,
-        reincidente: q.reincidente,
-        valor_calculado: q.valor_calculado
+    let l = z(a, s.definicao, e.formulario_id, e.avaliado_id, e.client_uuid);
+    for (let F of Q(s.definicao))
+      if (F.preenchimento_unico && l[F.key])
+        e = { ...e, respostas: { ...e.respostas, [F.key]: { ...e.respostas[F.key], ...l[F.key] } } };
+    let c = H(a, e.formulario_id, e.avaliado_id, e.client_uuid), g = qo(s.definicao, e.respostas, c);
+    if (e.status === "completa" && g.pendentes.length)
+      return { client_uuid: e.client_uuid, ok: !1, erro: "invalido", mensagem: `${g.pendentes.length} questão(ões) com pendência.` };
+    let A = {
+      nao_conformidades: g.nao_conformidades,
+      questoes: Object.fromEntries(Object.values(g.questoes).filter((F) => F.visivel).map((F) => [F.key, {
+        conforme: F.conforme,
+        pontos: F.pontos,
+        pontos_max: F.pontos_max,
+        reincidente: F.reincidente,
+        valor_calculado: F.valor_calculado
       }])),
-      topicos: Object.fromEntries(Object.values(ev.topicos).map((t) => [t.key, { pct: t.pct, desconto_pct: t.desconto_pct }]))
-    }, base = {
-      org_id: ORG.id,
+      topicos: Object.fromEntries(Object.values(g.topicos).map((F) => [F.key, { pct: F.pct, desconto_pct: F.desconto_pct }]))
+    }, w = {
+      org_id: i.id,
       client_uuid: e.client_uuid,
       formulario_id: e.formulario_id,
       formulario_versao_id: e.formulario_versao_id,
       avaliado_id: e.avaliado_id,
-      responsavel_id: m.id,
+      responsavel_id: o.id,
       status: e.status,
       iniciada_em: e.iniciada_em,
       finalizada_em: e.finalizada_em,
@@ -1181,1088 +1181,1088 @@ function criarServidor(amb) {
       geo_fim: e.geo_fim ?? null,
       respostas: e.respostas,
       anexos: e.anexos,
-      nota_pct: ev.nota_pct,
-      pontos: ev.pontos,
-      pontos_max: ev.pontos_max,
-      classificacao: ev.classificacao?.nome ?? null,
-      classificacao_cor: ev.classificacao?.cor ?? null,
-      qtd_nao_conformidades: ev.nao_conformidades.length,
-      resultado,
+      nota_pct: g.nota_pct,
+      pontos: g.pontos,
+      pontos_max: g.pontos_max,
+      classificacao: g.classificacao?.nome ?? null,
+      classificacao_cor: g.classificacao?.cor ?? null,
+      qtd_nao_conformidades: g.nao_conformidades.length,
+      resultado: A,
       device_id: e.device_id,
-      sincronizada_em: agora,
-      ocorrencia_id: e.status === "completa" ? cumprirOcorrencia(s, m, e, existente?.id) : null
-    }, etapas = versao.definicao.config.aprovacao?.etapas ?? [], status = e.status === "completa" && etapas.length ? "em_aprovacao" : e.status;
-    Object.assign(base, { status, aprovacao_etapa: status === "em_aprovacao" ? 1 : null });
-    let id;
-    if (existente)
-      Object.assign(existente, base, { updated_at: agora }), id = existente.id;
+      sincronizada_em: n,
+      ocorrencia_id: e.status === "completa" ? yo(a, o, e, t?.id) : null
+    }, q = s.definicao.config.aprovacao?.etapas ?? [], O = e.status === "completa" && q.length ? "em_aprovacao" : e.status;
+    Object.assign(w, { status: O, aprovacao_etapa: O === "em_aprovacao" ? 1 : null });
+    let P;
+    if (t)
+      Object.assign(t, w, { updated_at: n }), P = t.id;
     else
-      id = uuid(), s.inspecoes.push({ id, ...base, created_at: agora, updated_at: agora }), log(s, id, m.id, "criada", { device_id: e.device_id }, e.iniciada_em);
-    log(s, id, m.id, "sincronizada", { device_id: e.device_id }, agora);
-    let oc = base.ocorrencia_id ? s.ocorrencias.find((o) => o.id === base.ocorrencia_id) : void 0;
-    if (oc)
-      oc.inspecao_id = id;
+      P = _(), a.inspecoes.push({ id: P, ...w, created_at: n, updated_at: n }), L(a, P, o.id, "criada", { device_id: e.device_id }, e.iniciada_em);
+    L(a, P, o.id, "sincronizada", { device_id: e.device_id }, n);
+    let K = w.ocorrencia_id ? a.ocorrencias.find((F) => F.id === w.ocorrencia_id) : void 0;
+    if (K)
+      K.inspecao_id = P;
     if (e.status === "completa")
-      log(s, id, m.id, "finalizada", { nota_pct: ev.nota_pct, ncs: ev.nao_conformidades.length }, e.finalizada_em ?? agora);
-    if (status === "em_aprovacao")
-      log(s, id, null, "enviada_aprovacao", { etapa: 1, de: etapas.length }, agora), avisarAprovadores(s, id);
-    return { client_uuid: e.client_uuid, ok: !0, id, nota_pct: ev.nota_pct, classificacao: ev.classificacao?.nome ?? null };
+      L(a, P, o.id, "finalizada", { nota_pct: g.nota_pct, ncs: g.nao_conformidades.length }, e.finalizada_em ?? n);
+    if (O === "em_aprovacao")
+      L(a, P, null, "enviada_aprovacao", { etapa: 1, de: q.length }, n), Z(a, P);
+    return { client_uuid: e.client_uuid, ok: !0, id: P, nota_pct: g.nota_pct, classificacao: g.classificacao?.nome ?? null };
   }
-  function podeFormulario(m, formId) {
-    return pode(m, "gerenciar_formularios") || m.formularios_permitidos === "todos" || m.formularios_permitidos.includes(formId);
+  function W(a, o) {
+    return Y(a, "gerenciar_formularios") || a.formularios_permitidos === "todos" || a.formularios_permitidos.includes(o);
   }
-  function podeAvaliado(m, avId) {
-    return m.avaliados_permitidos === "todos" || m.avaliados_permitidos.includes(avId);
+  function N(a, o) {
+    return a.avaliados_permitidos === "todos" || a.avaliados_permitidos.includes(o);
   }
-  function exigir(m, acao) {
-    let atual = membrosCache().find((x) => x.id === m.id) ?? m;
-    if (!atual.ativo || !pode(atual, acao))
+  function T(a, o) {
+    let e = k().find((n) => n.id === a.id) ?? a;
+    if (!e.ativo || !Y(e, o))
       throw Error("Você não tem permissão para isso.");
   }
-  function requireOnline() {
-    amb.exigirRede();
+  function J() {
+    r.exigirRede();
   }
-  let server = {
-    async entrar(email, senha) {
-      await amb.atraso();
-      let st = await load(), m = resolverMembros(st.membros, st.funcoes, st.equipes).find((x) => x.email.toLowerCase() === email.trim().toLowerCase());
-      if (!m || senha.length < 4)
+  let ao = {
+    async entrar(a, o) {
+      await r.atraso();
+      let e = await y(), n = so(e.membros, e.funcoes, e.equipes).find((s) => s.email.toLowerCase() === a.trim().toLowerCase());
+      if (!n || o.length < 4)
         throw Error("E-mail ou senha incorretos.");
-      if (!m.ativo)
+      if (!n.ativo)
         throw Error("Este acesso foi desativado. Fale com o administrador da conta.");
-      return amb.local.set("inspeta:sessao", m.id), amb.aviso("sessao"), m;
+      return r.local.set("inspeta:sessao", n.id), r.aviso("sessao"), n;
     },
     sessao() {
-      let id = amb.local.get("inspeta:sessao"), m = id ? membrosCache().find((x) => x.id === id) : void 0;
-      return m && m.ativo ? m : null;
+      let a = r.local.get("inspeta:sessao"), o = a ? k().find((e) => e.id === a) : void 0;
+      return o && o.ativo ? o : null;
     },
     sair() {
-      amb.local.del("inspeta:sessao"), amb.aviso("sessao");
+      r.local.del("inspeta:sessao"), r.aviso("sessao");
     },
     org() {
-      return ORG;
+      return i;
     },
-    async recuperarSenha(_email) {
-      await amb.atraso();
+    async recuperarSenha(a) {
+      await r.atraso();
     },
-    async definirSenha(_senha) {
+    async definirSenha(a) {
       throw Error("Na demonstração qualquer senha com 4+ caracteres funciona.");
     },
     capturarRetornoAuth() {
       return null;
     },
     membros() {
-      return membrosCache();
+      return k();
     },
     async listarFormularios() {
-      await amb.atraso();
-      let s = await load();
-      return s.formularios.filter((f) => !f.arquivado).map((f) => {
-        let v = s.versoes.find((x) => x.id === f.versao_publicada_id) ?? null;
+      await r.atraso();
+      let a = await y();
+      return a.formularios.filter((o) => !o.arquivado).map((o) => {
+        let e = a.versoes.find((n) => n.id === o.versao_publicada_id) ?? null;
         return {
-          ...f,
-          versao_numero: v?.numero ?? null,
-          tem_alteracoes: !v || JSON.stringify(v.definicao) !== JSON.stringify(f.rascunho),
-          qtd_questoes: f.rascunho.topicos.reduce((n, t) => n + t.questoes.length, 0),
-          qtd_inspecoes: s.inspecoes.filter((i) => i.formulario_id === f.id && i.status !== "rascunho").length
+          ...o,
+          versao_numero: e?.numero ?? null,
+          tem_alteracoes: !e || JSON.stringify(e.definicao) !== JSON.stringify(o.rascunho),
+          qtd_questoes: o.rascunho.topicos.reduce((n, s) => n + s.questoes.length, 0),
+          qtd_inspecoes: a.inspecoes.filter((n) => n.formulario_id === o.id && n.status !== "rascunho").length
         };
-      }).sort((a, b) => b.updated_at.localeCompare(a.updated_at));
+      }).sort((o, e) => e.updated_at.localeCompare(o.updated_at));
     },
-    async obterFormulario(id) {
-      let f = (await load()).formularios.find((x) => x.id === id);
-      if (!f)
+    async obterFormulario(a) {
+      let o = (await y()).formularios.find((e) => e.id === a);
+      if (!o)
         throw Error("Formulário não encontrado.");
-      return clone(f);
+      return h(o);
     },
-    async criarFormulario(nome, base) {
-      if (await amb.atraso(), !nome.trim())
+    async criarFormulario(a, o) {
+      if (await r.atraso(), !a.trim())
         throw Error("Dê um nome ao formulário.");
-      let def = base ? clone(base) : {
+      let e = o ? h(o) : {
         config: { calcular_nota: !0, casas_decimais: 1, classificacoes: [
           { nome: "Ruim", cor: "rank-bad", min: 0, max: 69.99 },
           { nome: "Regular", cor: "rank-mid", min: 70, max: 84.99 },
           { nome: "Bom", cor: "rank-good", min: 85, max: 100 }
         ] },
-        topicos: [{ key: uuid(), titulo: "Tópico 1", questoes: [{ key: uuid(), titulo: "", tipo: "escolha_simples", obrigatoria: !0, opcoes: [
-          { key: uuid(), texto: "Sim", pontos: 10, conforme: !0 },
-          { key: uuid(), texto: "Não", pontos: 0, conforme: !1 }
+        topicos: [{ key: _(), titulo: "Tópico 1", questoes: [{ key: _(), titulo: "", tipo: "escolha_simples", obrigatoria: !0, opcoes: [
+          { key: _(), texto: "Sim", pontos: 10, conforme: !0 },
+          { key: _(), texto: "Não", pontos: 0, conforme: !1 }
         ] }] }]
       };
-      return mutate("formularios", (s) => {
-        let f = { id: uuid(), org_id: ORG.id, nome: nome.trim(), rascunho: def, versao_publicada_id: null, avaliados_vinculados: [], arquivado: !1, created_at: nowISO(), updated_at: nowISO() };
-        return s.formularios.push(f), clone(f);
+      return D("formularios", (n) => {
+        let s = { id: _(), org_id: i.id, nome: a.trim(), rascunho: e, versao_publicada_id: null, avaliados_vinculados: [], arquivado: !1, created_at: m(), updated_at: m() };
+        return n.formularios.push(s), h(s);
       });
     },
-    salvarRascunho(id, patch, esperado) {
-      return mutate("formularios", (s) => {
-        let f = s.formularios.find((x) => x.id === id);
-        if (!f)
+    salvarRascunho(a, o, e) {
+      return D("formularios", (n) => {
+        let s = n.formularios.find((t) => t.id === a);
+        if (!s)
           throw Error("Formulário não encontrado.");
-        if (esperado && f.updated_at !== esperado)
+        if (e && s.updated_at !== e)
           throw Error("Este formulário foi alterado em outra aba. Recarregue para não perder mudanças.");
-        if (patch.nome !== void 0)
-          f.nome = patch.nome;
-        if (patch.rascunho)
-          f.rascunho = patch.rascunho;
-        if (patch.avaliados_vinculados)
-          f.avaliados_vinculados = patch.avaliados_vinculados;
-        return f.updated_at = nowISO(), clone(f);
+        if (o.nome !== void 0)
+          s.nome = o.nome;
+        if (o.rascunho)
+          s.rascunho = o.rascunho;
+        if (o.avaliados_vinculados)
+          s.avaliados_vinculados = o.avaliados_vinculados;
+        return s.updated_at = m(), h(s);
       });
     },
-    async publicar(id, por) {
-      return await amb.atraso(), mutate("formularios", (s) => {
-        let f = s.formularios.find((x) => x.id === id);
-        if (!f)
+    async publicar(a, o) {
+      return await r.atraso(), D("formularios", (e) => {
+        let n = e.formularios.find((c) => c.id === a);
+        if (!n)
           throw Error("Formulário não encontrado.");
-        let problemas = validateDefinition(f.rascunho);
-        if (problemas.length)
-          return { ok: !1, problemas };
-        let numero = Math.max(0, ...s.versoes.filter((v) => v.formulario_id === id).map((v) => v.numero)) + 1, versao = { id: uuid(), formulario_id: id, numero, definicao: clone(f.rascunho), publicado_em: nowISO(), publicado_por: por };
-        return s.versoes.push(versao), f.versao_publicada_id = versao.id, f.updated_at = nowISO(), { ok: !0, versao: clone(versao) };
+        let s = Co(n.rascunho);
+        if (s.length)
+          return { ok: !1, problemas: s };
+        let t = Math.max(0, ...e.versoes.filter((c) => c.formulario_id === a).map((c) => c.numero)) + 1, l = { id: _(), formulario_id: a, numero: t, definicao: h(n.rascunho), publicado_em: m(), publicado_por: o };
+        return e.versoes.push(l), n.versao_publicada_id = l.id, n.updated_at = m(), { ok: !0, versao: h(l) };
       });
     },
-    async obterVersao(id) {
-      let v = (await load()).versoes.find((x) => x.id === id);
-      if (!v)
+    async obterVersao(a) {
+      let o = (await y()).versoes.find((e) => e.id === a);
+      if (!o)
         throw Error("Versão não encontrada.");
-      return clone(v);
+      return h(o);
     },
     async listarAvaliados() {
-      return await amb.atraso(), clone((await load()).avaliados).sort((a, b) => a.nome.localeCompare(b.nome, "pt-BR"));
+      return await r.atraso(), h((await y()).avaliados).sort((a, o) => a.nome.localeCompare(o.nome, "pt-BR"));
     },
-    criarAvaliado(dados) {
-      return server.salvarAvaliado(null, dados);
+    criarAvaliado(a) {
+      return ao.salvarAvaliado(null, a);
     },
-    salvarAvaliado(id, dados) {
-      if (dados.nome !== void 0 && !dados.nome.trim())
+    salvarAvaliado(a, o) {
+      if (o.nome !== void 0 && !o.nome.trim())
         return Promise.reject(Error("O nome do avaliado é obrigatório."));
-      if (id === null && !dados.nome?.trim())
+      if (a === null && !o.nome?.trim())
         return Promise.reject(Error("O nome do avaliado é obrigatório."));
-      if (dados.email && !/^\S+@\S+\.\S+$/.test(dados.email))
+      if (o.email && !/^\S+@\S+\.\S+$/.test(o.email))
         return Promise.reject(Error("E-mail inválido."));
-      return mutate("avaliados", (s) => {
-        let atual = id ? s.avaliados.find((a) => a.id === id) : void 0;
-        if (id && !atual)
+      return D("avaliados", (e) => {
+        let n = a ? e.avaliados.find((l) => l.id === a) : void 0;
+        if (a && !n)
           throw Error("Avaliado não encontrado.");
-        if (dados.codigo_externo && s.avaliados.some((a) => a.codigo_externo === dados.codigo_externo && a.id !== id))
-          throw Error(`Já existe um avaliado com o código ${dados.codigo_externo}.`);
-        let v = validarCampos(s.camposAvaliado, dados.campos ?? atual?.campos ?? {});
-        if (v.erros.length)
-          throw Error(v.erros.join(". ") + ".");
-        if (atual)
-          return Object.assign(atual, clone(dados), { nome: (dados.nome ?? atual.nome).trim(), campos: v.valores, updated_at: nowISO() }), clone(atual);
-        let a = { ...clone(dados), id: uuid(), org_id: ORG.id, nome: dados.nome.trim(), campos: v.valores, ativo: !0, created_at: nowISO(), updated_at: nowISO() };
-        return s.avaliados.push(a), clone(a);
+        if (o.codigo_externo && e.avaliados.some((l) => l.codigo_externo === o.codigo_externo && l.id !== a))
+          throw Error(`Já existe um avaliado com o código ${o.codigo_externo}.`);
+        let s = jo(e.camposAvaliado, o.campos ?? n?.campos ?? {});
+        if (s.erros.length)
+          throw Error(s.erros.join(". ") + ".");
+        if (n)
+          return Object.assign(n, h(o), { nome: (o.nome ?? n.nome).trim(), campos: s.valores, updated_at: m() }), h(n);
+        let t = { ...h(o), id: _(), org_id: i.id, nome: o.nome.trim(), campos: s.valores, ativo: !0, created_at: m(), updated_at: m() };
+        return e.avaliados.push(t), h(t);
       });
     },
     async listarCamposAvaliado() {
-      return clone((await load()).camposAvaliado).sort((a, b) => a.ordem - b.ordem);
+      return h((await y()).camposAvaliado).sort((a, o) => a.ordem - o.ordem);
     },
-    salvarCamposAvaliado(quem, campos) {
-      exigir(quem, "gerenciar_avaliados");
-      let erros = validarDefinicaoCampos(campos);
-      if (erros.length)
-        return Promise.reject(Error(erros.join(" ")));
-      return mutate("avaliados", (s) => {
-        let ids = new Set(campos.map((c) => c.id));
-        s.camposAvaliado = campos.map((c, i) => ({
-          ...clone(c),
-          nome: c.nome.trim(),
-          ordem: i + 1,
-          opcoes: c.tipo === "lista" ? (c.opcoes ?? []).map((o) => o.trim()).filter(Boolean) : void 0
+    salvarCamposAvaliado(a, o) {
+      T(a, "gerenciar_avaliados");
+      let e = me(o);
+      if (e.length)
+        return Promise.reject(Error(e.join(" ")));
+      return D("avaliados", (n) => {
+        let s = new Set(o.map((t) => t.id));
+        n.camposAvaliado = o.map((t, l) => ({
+          ...h(t),
+          nome: t.nome.trim(),
+          ordem: l + 1,
+          opcoes: t.tipo === "lista" ? (t.opcoes ?? []).map((c) => c.trim()).filter(Boolean) : void 0
         }));
-        for (let a of s.avaliados)
-          if (a.campos) {
-            for (let k of Object.keys(a.campos))
-              if (!ids.has(k))
-                delete a.campos[k];
+        for (let t of n.avaliados)
+          if (t.campos) {
+            for (let l of Object.keys(t.campos))
+              if (!s.has(l))
+                delete t.campos[l];
           }
-        return clone(s.camposAvaliado);
+        return h(n.camposAvaliado);
       });
     },
-    async listarInspecoes(quem, filtro = {}) {
-      await amb.atraso();
-      let s = await load(), busca = (filtro.busca ?? "").trim().toLowerCase(), nomeAv = new Map(s.avaliados.map((a) => [a.id, a.nome])), nomeF = new Map(s.formularios.map((f) => [f.id, f.nome])), nomeM = new Map(membrosCache().map((m) => [m.id, m.nome]));
-      return clone(s.inspecoes.filter((i) => {
-        if (!podeVerInspecao(quem, i) && !ehAprovador(s, quem, i))
+    async listarInspecoes(a, o = {}) {
+      await r.atraso();
+      let e = await y(), n = (o.busca ?? "").trim().toLowerCase(), s = new Map(e.avaliados.map((c) => [c.id, c.nome])), t = new Map(e.formularios.map((c) => [c.id, c.nome])), l = new Map(k().map((c) => [c.id, c.nome]));
+      return h(e.inspecoes.filter((c) => {
+        if (!bo(a, c) && !X(e, a, c))
           return !1;
-        if (filtro.status && i.status !== filtro.status)
+        if (o.status && c.status !== o.status)
           return !1;
-        let d = (i.finalizada_em ?? i.iniciada_em).slice(0, 10);
-        if (filtro.de && d < filtro.de)
+        let g = (c.finalizada_em ?? c.iniciada_em).slice(0, 10);
+        if (o.de && g < o.de)
           return !1;
-        if (filtro.ate && d > filtro.ate)
+        if (o.ate && g > o.ate)
           return !1;
-        if (busca) {
-          if (![nomeAv.get(i.avaliado_id), nomeF.get(i.formulario_id), nomeM.get(i.responsavel_id), i.id.slice(0, 8)].join(" ").toLowerCase().includes(busca))
+        if (n) {
+          if (![s.get(c.avaliado_id), t.get(c.formulario_id), l.get(c.responsavel_id), c.id.slice(0, 8)].join(" ").toLowerCase().includes(n))
             return !1;
         }
         return !0;
-      }).sort((a, b) => (b.finalizada_em ?? b.iniciada_em).localeCompare(a.finalizada_em ?? a.iniciada_em)));
+      }).sort((c, g) => (g.finalizada_em ?? g.iniciada_em).localeCompare(c.finalizada_em ?? c.iniciada_em)));
     },
-    async obterInspecao(quem, id) {
-      let s = await load(), i = s.inspecoes.find((x) => x.id === id);
-      if (!i || !podeVerInspecao(quem, i) && !ehAprovador(s, quem, i))
+    async obterInspecao(a, o) {
+      let e = await y(), n = e.inspecoes.find((s) => s.id === o);
+      if (!n || !bo(a, n) && !X(e, a, n))
         throw Error("Inspeção não encontrada.");
-      return clone(i);
+      return h(n);
     },
-    async eventos(id) {
-      return clone((await load()).eventos.filter((e) => e.inspecao_id === id));
+    async eventos(a) {
+      return h((await y()).eventos.filter((o) => o.inspecao_id === a));
     },
-    async anexo(client_uuid) {
-      return amb.anexo(client_uuid);
+    async anexo(a) {
+      return r.anexo(a);
     },
-    async salvarLogo(dataUrl) {
-      if (!/^data:image\/(png|jpeg);base64,/.test(dataUrl))
+    async salvarLogo(a) {
+      if (!/^data:image\/(png|jpeg);base64,/.test(a))
         throw Error("Use uma imagem PNG ou JPG.");
-      if (dataUrl.length > 409600)
+      if (a.length > 409600)
         throw Error("Logo acima de 300 KB mesmo depois de reduzido.");
-      let id = "logo-" + uuid();
-      return await amb.guardarAnexo(id, dataUrl), id;
+      let o = "logo-" + _();
+      return await r.guardarAnexo(o, a), o;
     },
-    async layoutRelatorio(formulario_id) {
-      let s = await load(), f = s.formularios.find((x) => x.id === formulario_id), layout = s.versoes.find((x) => x.id === f?.versao_publicada_id)?.definicao.config.relatorio?.layout ?? {};
-      return { layout, logo: layout.logo_id ? await amb.anexo(layout.logo_id) ?? null : null };
+    async layoutRelatorio(a) {
+      let o = await y(), e = o.formularios.find((t) => t.id === a), s = o.versoes.find((t) => t.id === e?.versao_publicada_id)?.definicao.config.relatorio?.layout ?? {};
+      return { layout: s, logo: s.logo_id ? await r.anexo(s.logo_id) ?? null : null };
     },
-    registrarRelatorio(id, quem) {
-      return mutate("inspecoes", (s) => log(s, id, quem, "relatorio_enviado", { formato: "pdf" }));
+    registrarRelatorio(a, o) {
+      return D("inspecoes", (e) => L(e, a, o, "relatorio_enviado", { formato: "pdf" }));
     },
-    async pacote(membroId) {
-      requireOnline(), await amb.atraso(), await rodarAgenda();
-      let s = await load(), m = membroEm(s, membroId), formularios = s.formularios.filter((f) => !f.arquivado && f.versao_publicada_id && podeFormulario(m, f.id)).map((f) => ({
-        formulario_id: f.id,
-        nome: f.nome,
-        versao: clone(s.versoes.find((v) => v.id === f.versao_publicada_id)),
-        avaliados: f.avaliados_vinculados.length ? f.avaliados_vinculados : "todos"
-      })), anterioresMap = {};
-      for (let f of formularios)
-        for (let a of s.avaliados) {
-          let p = anteriores(s, f.formulario_id, a.id);
-          if (Object.keys(p).length)
-            anterioresMap[`${f.formulario_id}|${a.id}`] = p;
+    async pacote(a) {
+      J(), await r.atraso(), await vo();
+      let o = await y(), e = I(o, a), n = o.formularios.filter((w) => !w.arquivado && w.versao_publicada_id && W(e, w.id)).map((w) => ({
+        formulario_id: w.id,
+        nome: w.nome,
+        versao: h(o.versoes.find((q) => q.id === w.versao_publicada_id)),
+        avaliados: w.avaliados_vinculados.length ? w.avaliados_vinculados : "todos"
+      })), s = {};
+      for (let w of n)
+        for (let q of o.avaliados) {
+          let O = H(o, w.formulario_id, q.id);
+          if (Object.keys(O).length)
+            s[`${w.formulario_id}|${q.id}`] = O;
         }
-      let avaliados = clone(s.avaliados.filter((a) => a.ativo && podeAvaliado(m, a.id))), hoje = hojeNaOrg(), janelaDe = new Date(Date.parse(somarDias(hoje, -7) + "T00:00:00Z")).toISOString(), agenda = s.ocorrencias.filter((o) => o.status === "pendente" && o.previsto_em >= janelaDe).flatMap((o) => {
-        let a = s.agendamentos.find((x) => x.id === o.agendamento_id);
-        if (!a || !a.responsaveis.includes(m.id) || !formularios.some((f) => f.formulario_id === a.formulario_id) || !avaliados.some((x) => x.id === a.avaliado_id))
+      let t = h(o.avaliados.filter((w) => w.ativo && N(e, w.id))), l = U(), c = new Date(Date.parse(ro(l, -7) + "T00:00:00Z")).toISOString(), g = o.ocorrencias.filter((w) => w.status === "pendente" && w.previsto_em >= c).flatMap((w) => {
+        let q = o.agendamentos.find((O) => O.id === w.agendamento_id);
+        if (!q || !q.responsaveis.includes(e.id) || !n.some((O) => O.formulario_id === q.formulario_id) || !t.some((O) => O.id === q.avaliado_id))
           return [];
-        return [{ id: o.id, formulario_id: a.formulario_id, avaliado_id: a.avaliado_id, previsto_em: o.previsto_em, dia_inteiro: a.dia_inteiro, limite: limiteDaOcorrencia(o.previsto_em, a), descricao: descreverRegra(a) }];
-      }).sort((x, y) => x.previsto_em.localeCompare(y.previsto_em)), ultimas = {};
-      for (let f of formularios)
-        for (let a of avaliados) {
-          let u = ultimasRespostas(s, f.versao.definicao, f.formulario_id, a.id);
-          if (Object.keys(u).length)
-            ultimas[`${f.formulario_id}|${a.id}`] = u;
+        return [{ id: w.id, formulario_id: q.formulario_id, avaliado_id: q.avaliado_id, previsto_em: w.previsto_em, dia_inteiro: q.dia_inteiro, limite: Ao(w.previsto_em, q), descricao: zo(q) }];
+      }).sort((w, q) => w.previsto_em.localeCompare(q.previsto_em)), A = {};
+      for (let w of n)
+        for (let q of t) {
+          let O = z(o, w.versao.definicao, w.formulario_id, q.id);
+          if (Object.keys(O).length)
+            A[`${w.formulario_id}|${q.id}`] = O;
         }
-      return { cursor: nowISO(), membro: m, org: ORG, formularios, avaliados, anteriores: anterioresMap, ultimas, agenda };
+      return { cursor: m(), membro: e, org: i, formularios: n, avaliados: t, anteriores: s, ultimas: A, agenda: g };
     },
-    async enviarAnexo(membroId, client_uuid, dataUrl) {
-      if (requireOnline(), membroEm(await load(), membroId), await amb.atraso(), dataUrl.length > 21548236.8)
+    async enviarAnexo(a, o, e) {
+      if (J(), I(await y(), a), await r.atraso(), e.length > 21548236.8)
         throw Error("Arquivo acima de 15 MB.");
-      await amb.guardarAnexo(client_uuid, dataUrl);
+      await r.guardarAnexo(o, e);
     },
-    async enviarInspecoes(membroId, lote) {
-      requireOnline();
-      let m = membroEm(await load(), membroId);
-      if (await amb.atraso(), lote.length > 20)
+    async enviarInspecoes(a, o) {
+      J();
+      let e = I(await y(), a);
+      if (await r.atraso(), o.length > 20)
         throw Error("Lote acima de 20 inspeções.");
-      let presentes = await amb.anexosPresentes(lote.flatMap((e) => e.anexos.map((a) => a.client_uuid))), res = await mutate("inspecoes", (s) => lote.map((e) => {
-        if (e.anexos.find((a) => !presentes.has(a.client_uuid)))
-          return { client_uuid: e.client_uuid, ok: !1, erro: "anexo_faltando", mensagem: "Foto ainda não enviada." };
-        return processar(s, m, e);
+      let n = await r.anexosPresentes(o.flatMap((t) => t.anexos.map((l) => l.client_uuid))), s = await D("inspecoes", (t) => o.map((l) => {
+        if (l.anexos.find((g) => !n.has(g.client_uuid)))
+          return { client_uuid: l.client_uuid, ok: !1, erro: "anexo_faltando", mensagem: "Foto ainda não enviada." };
+        return lo(t, e, l);
       }));
-      for (let r of res) {
-        let e = lote.find((x) => x.client_uuid === r.client_uuid);
-        if (r.ok && e?.status === "completa")
-          await posFinalizacao(r.id);
+      for (let t of s) {
+        let l = o.find((c) => c.client_uuid === t.client_uuid);
+        if (t.ok && l?.status === "completa")
+          await qe(t.id);
       }
-      return res;
+      return s;
     },
     async listarPlanosModelo() {
-      return await amb.atraso(), clone((await load()).planosModelo).sort((a, b) => a.nome.localeCompare(b.nome, "pt-BR"));
+      return await r.atraso(), h((await y()).planosModelo).sort((a, o) => a.nome.localeCompare(o.nome, "pt-BR"));
     },
-    async obterPlanoModelo(id) {
-      let m = (await load()).planosModelo.find((x) => x.id === id);
-      if (!m)
+    async obterPlanoModelo(a) {
+      let o = (await y()).planosModelo.find((e) => e.id === a);
+      if (!o)
         throw Error("Modelo de plano não encontrado.");
-      return clone(m);
+      return h(o);
     },
-    criarPlanoModelo(nome) {
-      if (!nome.trim())
+    criarPlanoModelo(a) {
+      if (!a.trim())
         return Promise.reject(Error("Dê um nome ao modelo."));
-      return mutate("planos", (s) => {
-        if (s.planosModelo.some((m) => m.nome.toLowerCase() === nome.trim().toLowerCase()))
+      return D("planos", (o) => {
+        if (o.planosModelo.some((n) => n.nome.toLowerCase() === a.trim().toLowerCase()))
           throw Error("Já existe um modelo com esse nome.");
-        let m = {
-          id: uuid(),
-          org_id: ORG.id,
-          nome: nome.trim(),
+        let e = {
+          id: _(),
+          org_id: i.id,
+          nome: a.trim(),
           agrupamento: "por_inspecao",
           prazo_dias: 3,
           destinatario: "avaliado",
-          definicao: { config: { calcular_nota: !1 }, topicos: [{ key: uuid(), titulo: "Correção", questoes: [
-            { key: uuid(), titulo: "O que foi feito para corrigir?", tipo: "texto", obrigatoria: !0 }
+          definicao: { config: { calcular_nota: !1 }, topicos: [{ key: _(), titulo: "Correção", questoes: [
+            { key: _(), titulo: "O que foi feito para corrigir?", tipo: "texto", obrigatoria: !0 }
           ] }] },
-          created_at: nowISO(),
-          updated_at: nowISO()
+          created_at: m(),
+          updated_at: m()
         };
-        return s.planosModelo.push(m), clone(m);
+        return o.planosModelo.push(e), h(e);
       });
     },
-    salvarPlanoModelo(m) {
-      return mutate("planos", (s) => {
-        let i = s.planosModelo.findIndex((x) => x.id === m.id);
-        if (i < 0)
+    salvarPlanoModelo(a) {
+      return D("planos", (o) => {
+        let e = o.planosModelo.findIndex((n) => n.id === a.id);
+        if (e < 0)
           throw Error("Modelo de plano não encontrado.");
-        if (!m.nome.trim())
+        if (!a.nome.trim())
           throw Error("Dê um nome ao modelo.");
-        if (m.destinatario === "fixo" && !/^\S+@\S+\.\S+$/.test(m.email_fixo ?? ""))
+        if (a.destinatario === "fixo" && !/^\S+@\S+\.\S+$/.test(a.email_fixo ?? ""))
           throw Error("Informe um e-mail válido para o destinatário fixo.");
-        return s.planosModelo[i] = { ...clone(m), updated_at: nowISO() }, clone(s.planosModelo[i]);
+        return o.planosModelo[e] = { ...h(a), updated_at: m() }, h(o.planosModelo[e]);
       });
     },
-    async listarPlanos(quem, filtro = {}) {
-      await amb.atraso();
-      let s = await load(), hoje = hojeNaOrg(), busca = (filtro.busca ?? "").trim().toLowerCase();
-      return s.planos.filter((p) => {
-        if (pode(quem, "gerenciar_planos"))
+    async listarPlanos(a, o = {}) {
+      await r.atraso();
+      let e = await y(), n = U(), s = (o.busca ?? "").trim().toLowerCase();
+      return e.planos.filter((t) => {
+        if (Y(a, "gerenciar_planos"))
           return !0;
-        let i = s.inspecoes.find((x) => x.id === p.inspecao_id);
-        return !!i && podeVerInspecao(quem, i);
-      }).map((p) => ({
-        ...clone(p),
-        situacao: situacao(p, hoje),
-        avaliado: s.avaliados.find((a) => a.id === p.avaliado_id)?.nome ?? "Avaliado removido",
-        formulario: s.formularios.find((f) => f.id === p.formulario_id)?.nome ?? "Formulário removido"
-      })).filter((p) => (!filtro.situacao || p.situacao === filtro.situacao) && (!busca || [p.avaliado, p.modelo_snapshot.nome, p.responsavel_email, p.formulario].join(" ").toLowerCase().includes(busca))).sort((a, b) => b.created_at.localeCompare(a.created_at) || a.modelo_snapshot.nome.localeCompare(b.modelo_snapshot.nome, "pt-BR"));
+        let l = e.inspecoes.find((c) => c.id === t.inspecao_id);
+        return !!l && bo(a, l);
+      }).map((t) => ({
+        ...h(t),
+        situacao: to(t, n),
+        avaliado: e.avaliados.find((l) => l.id === t.avaliado_id)?.nome ?? "Avaliado removido",
+        formulario: e.formularios.find((l) => l.id === t.formulario_id)?.nome ?? "Formulário removido"
+      })).filter((t) => (!o.situacao || t.situacao === o.situacao) && (!s || [t.avaliado, t.modelo_snapshot.nome, t.responsavel_email, t.formulario].join(" ").toLowerCase().includes(s))).sort((t, l) => l.created_at.localeCompare(t.created_at) || t.modelo_snapshot.nome.localeCompare(l.modelo_snapshot.nome, "pt-BR"));
     },
-    async planosDaInspecao(inspecao_id) {
-      let s = await load(), hoje = hojeNaOrg();
-      return s.planos.filter((p) => p.inspecao_id === inspecao_id).map((p) => ({ ...clone(p), situacao: situacao(p, hoje) }));
+    async planosDaInspecao(a) {
+      let o = await y(), e = U();
+      return o.planos.filter((n) => n.inspecao_id === a).map((n) => ({ ...h(n), situacao: to(n, e) }));
     },
-    async novoLinkPlano(plano_id, quem, reenviarPara) {
-      if (!pode(quem, "gerenciar_planos"))
+    async novoLinkPlano(a, o, e) {
+      if (!Y(o, "gerenciar_planos"))
         throw Error("Sem permissão.");
-      await amb.atraso();
-      let token = novoToken(), hash = await sha256(token), link = linkPublico(token);
-      return await mutate("planos", (s) => {
-        let p = s.planos.find((x) => x.id === plano_id);
-        if (!p)
+      await r.atraso();
+      let n = Eo(), s = await go(n), t = Do(n);
+      return await D("planos", (l) => {
+        let c = l.planos.find((g) => g.id === a);
+        if (!c)
           throw Error("Plano não encontrado.");
-        if (p.token_hash = hash, reenviarPara) {
-          if (!/^\S+@\S+\.\S+$/.test(reenviarPara))
+        if (c.token_hash = s, e) {
+          if (!/^\S+@\S+\.\S+$/.test(e))
             throw Error("E-mail inválido.");
-          p.responsavel_email = reenviarPara, p.ultimo_email_em = nowISO(), filaEmail(s, emailPlano(s, p, link, hash));
+          c.responsavel_email = e, c.ultimo_email_em = m(), fo(l, Zo(l, c, t, s));
         }
-        p.updated_at = nowISO();
-      }), { link };
+        c.updated_at = m();
+      }), { link: t };
     },
-    async planoPorToken(token) {
-      await amb.atraso();
-      let hash = await sha256(token), s = await load(), p = s.planos.find((x) => x.token_hash === hash);
-      if (!p)
+    async planoPorToken(a) {
+      await r.atraso();
+      let o = await go(a), e = await y(), n = e.planos.find((g) => g.token_hash === o);
+      if (!n)
         throw Error("Este link não vale mais. Ele pode ter sido substituído por um mais novo; confira o último e-mail recebido.");
-      let i = s.inspecoes.find((x) => x.id === p.inspecao_id), todas = s.versoes.find((x) => x.id === i.formulario_versao_id).definicao.topicos.flatMap((t) => t.questoes), nc = p.questao_keys.map((k) => {
-        let pos = todas.findIndex((x) => x.key === k), q = pos >= 0 ? todas[pos] : null;
-        return { key: k, numero: pos + 1, titulo: q?.titulo ?? "Questão", resposta: i.respostas[k], questao: q, reincidente: !!i.resultado.questoes[k]?.reincidente };
+      let s = e.inspecoes.find((g) => g.id === n.inspecao_id), l = e.versoes.find((g) => g.id === s.formulario_versao_id).definicao.topicos.flatMap((g) => g.questoes), c = n.questao_keys.map((g) => {
+        let A = l.findIndex((q) => q.key === g), w = A >= 0 ? l[A] : null;
+        return { key: g, numero: A + 1, titulo: w?.titulo ?? "Questão", resposta: s.respostas[g], questao: w, reincidente: !!s.resultado.questoes[g]?.reincidente };
       });
       return {
-        plano: { ...clone(p), situacao: situacao(p, hojeNaOrg()) },
-        org: ORG,
-        avaliado: s.avaliados.find((a) => a.id === p.avaliado_id)?.nome ?? "",
-        formulario: s.formularios.find((f) => f.id === p.formulario_id)?.nome ?? "",
-        inspecao: { finalizada_em: i.finalizada_em, nota_pct: i.nota_pct, classificacao: i.classificacao, responsavel: s.membros.find((m) => m.id === i.responsavel_id)?.nome ?? "" },
-        ncs: nc
+        plano: { ...h(n), situacao: to(n, U()) },
+        org: i,
+        avaliado: e.avaliados.find((g) => g.id === n.avaliado_id)?.nome ?? "",
+        formulario: e.formularios.find((g) => g.id === n.formulario_id)?.nome ?? "",
+        inspecao: { finalizada_em: s.finalizada_em, nota_pct: s.nota_pct, classificacao: s.classificacao, responsavel: e.membros.find((g) => g.id === s.responsavel_id)?.nome ?? "" },
+        ncs: c
       };
     },
-    async responderPlano(token, dados) {
-      await amb.atraso();
-      let hash = await sha256(token);
-      for (let f of dados.fotos)
-        await amb.guardarAnexo(f.client_uuid, f.dataUrl);
-      await mutate("planos", (s) => {
-        let p = s.planos.find((x) => x.token_hash === hash);
-        if (!p)
+    async responderPlano(a, o) {
+      await r.atraso();
+      let e = await go(a);
+      for (let n of o.fotos)
+        await r.guardarAnexo(n.client_uuid, n.dataUrl);
+      await D("planos", (n) => {
+        let s = n.planos.find((t) => t.token_hash === e);
+        if (!s)
           throw Error("Este link não vale mais.");
-        if (p.status === "finalizado")
+        if (s.status === "finalizado")
           throw Error("Este plano já foi respondido.");
-        if (p.status === "em_aprovacao")
+        if (s.status === "em_aprovacao")
           throw Error("A resposta já foi enviada e está em análise.");
-        if (!dados.nome.trim())
+        if (!o.nome.trim())
           throw Error("Informe seu nome.");
-        for (let nc of p.questao_keys) {
-          let resp = { ...dados.respostas[nc] ?? {} };
-          for (let f of dados.fotos.filter((x) => x.nc_key === nc)) {
-            let a = resp[f.questao_key] ??= {};
-            a.fotos = (a.fotos ?? 0) + 1;
+        for (let t of s.questao_keys) {
+          let l = { ...o.respostas[t] ?? {} };
+          for (let g of o.fotos.filter((A) => A.nc_key === t)) {
+            let A = l[g.questao_key] ??= {};
+            A.fotos = (A.fotos ?? 0) + 1;
           }
-          if (evaluateForm(p.modelo_snapshot.definicao, resp).pendentes.length)
+          if (qo(s.modelo_snapshot.definicao, l).pendentes.length)
             throw Error("Ainda há perguntas obrigatórias sem resposta.");
-          p.respostas[nc] = resp;
+          s.respostas[t] = l;
         }
-        if (p.anexos = dados.fotos.map((f) => ({ client_uuid: f.client_uuid, questao_key: f.questao_key, nc_key: f.nc_key, tipo: "foto", mime: "image/jpeg", bytes: f.bytes })), p.respondido_por = dados.nome.trim(), p.respondido_em = nowISO(), p.modelo_snapshot.exige_aprovacao)
-          p.status = "em_aprovacao";
+        if (s.anexos = o.fotos.map((t) => ({ client_uuid: t.client_uuid, questao_key: t.questao_key, nc_key: t.nc_key, tipo: "foto", mime: "image/jpeg", bytes: t.bytes })), s.respondido_por = o.nome.trim(), s.respondido_em = m(), s.modelo_snapshot.exige_aprovacao)
+          s.status = "em_aprovacao";
         else
-          p.status = "finalizado", p.finalizado_em = nowISO();
-        p.updated_at = nowISO();
+          s.status = "finalizado", s.finalizado_em = m();
+        s.updated_at = m();
       });
     },
-    async decidirPlano(quem, plano_id, decisao, comentario = "") {
-      if (exigir(quem, "gerenciar_planos"), decisao === "reprovada" && comentario.trim().length < 3)
+    async decidirPlano(a, o, e, n = "") {
+      if (T(a, "gerenciar_planos"), e === "reprovada" && n.trim().length < 3)
         throw Error("Diga o que falta na correção.");
-      await amb.atraso();
-      let token = novoToken(), hash = await sha256(token);
-      return mutate("planos", (s) => {
-        let p = s.planos.find((x) => x.id === plano_id);
-        if (!p)
+      await r.atraso();
+      let s = Eo(), t = await go(s);
+      return D("planos", (l) => {
+        let c = l.planos.find((g) => g.id === o);
+        if (!c)
           throw Error("Plano não encontrado.");
-        if (p.status !== "em_aprovacao")
+        if (c.status !== "em_aprovacao")
           throw Error("Este plano não está esperando aprovação.");
-        if (decisao === "aprovada")
-          p.status = "finalizado", p.finalizado_em = nowISO(), p.aprovado_por = quem.id;
+        if (e === "aprovada")
+          c.status = "finalizado", c.finalizado_em = m(), c.aprovado_por = a.id;
         else {
-          (p.reprovacoes ??= []).push({ em: nowISO(), por: quem.id, comentario: comentario.trim(), respondido_por: p.respondido_por, respostas: clone(p.respostas) });
-          let dias = s.planosModelo.find((m) => m.id === p.modelo_id)?.prazo_dias ?? 3;
-          if (Object.assign(p, { status: "aberto", respostas: {}, anexos: [], respondido_por: void 0, respondido_em: null, prazo: somarDias2(hojeNaOrg(), dias), token_hash: hash }), p.responsavel_email) {
-            p.ultimo_email_em = nowISO();
-            let av = s.avaliados.find((a) => a.id === p.avaliado_id)?.nome ?? "";
-            filaEmail(s, {
-              idem_key: `plano-devolvido:${p.id}:${hash.slice(0, 16)}`,
-              para: p.responsavel_email,
-              assunto: `Correção devolvida: ${p.modelo_snapshot.nome} — ${av}`,
-              texto: `A correção enviada não foi aceita: "${comentario.trim()}". Responda de novo até ${p.prazo.split("-").reverse().join("/")}.`,
-              link: linkPublico(token)
+          (c.reprovacoes ??= []).push({ em: m(), por: a.id, comentario: n.trim(), respondido_por: c.respondido_por, respostas: h(c.respostas) });
+          let g = l.planosModelo.find((A) => A.id === c.modelo_id)?.prazo_dias ?? 3;
+          if (Object.assign(c, { status: "aberto", respostas: {}, anexos: [], respondido_por: void 0, respondido_em: null, prazo: B(U(), g), token_hash: t }), c.responsavel_email) {
+            c.ultimo_email_em = m();
+            let A = l.avaliados.find((w) => w.id === c.avaliado_id)?.nome ?? "";
+            fo(l, {
+              idem_key: `plano-devolvido:${c.id}:${t.slice(0, 16)}`,
+              para: c.responsavel_email,
+              assunto: `Correção devolvida: ${c.modelo_snapshot.nome} — ${A}`,
+              texto: `A correção enviada não foi aceita: "${n.trim()}". Responda de novo até ${c.prazo.split("-").reverse().join("/")}.`,
+              link: Do(s)
             });
           }
         }
-        return p.updated_at = nowISO(), p.status;
+        return c.updated_at = m(), c.status;
       });
     },
     async caixaDeSaida() {
-      return await amb.atraso(), clone((await load()).emails).sort((a, b) => b.criado_em.localeCompare(a.criado_em));
+      return await r.atraso(), h((await y()).emails).sort((a, o) => o.criado_em.localeCompare(a.criado_em));
     },
-    async importarAvaliados(linhas, opts = {}) {
-      await amb.atraso();
-      let aplicar = (s) => {
-        let r = { novos: 0, atualizados: 0, erros: [] }, codigosNoArquivo = /* @__PURE__ */ new Map;
-        return linhas.forEach((l, k) => {
-          let n = k + 2, nome = (l.nome ?? "").trim(), codigo = (l.codigo_externo ?? "").trim() || void 0;
-          if (!nome) {
-            r.erros.push({ linha: n, motivo: "sem nome" });
+    async importarAvaliados(a, o = {}) {
+      await r.atraso();
+      let e = (n) => {
+        let s = { novos: 0, atualizados: 0, erros: [] }, t = /* @__PURE__ */ new Map;
+        return a.forEach((l, c) => {
+          let g = c + 2, A = (l.nome ?? "").trim(), w = (l.codigo_externo ?? "").trim() || void 0;
+          if (!A) {
+            s.erros.push({ linha: g, motivo: "sem nome" });
             return;
           }
           if (l.email && !/^\S+@\S+\.\S+$/.test(l.email.trim())) {
-            r.erros.push({ linha: n, motivo: `e-mail inválido: ${l.email}` });
+            s.erros.push({ linha: g, motivo: `e-mail inválido: ${l.email}` });
             return;
           }
-          if (codigo) {
-            if (codigosNoArquivo.has(codigo)) {
-              r.erros.push({ linha: n, motivo: `código ${codigo} repetido (já está na linha ${codigosNoArquivo.get(codigo)})` });
+          if (w) {
+            if (t.has(w)) {
+              s.erros.push({ linha: g, motivo: `código ${w} repetido (já está na linha ${t.get(w)})` });
               return;
             }
-            codigosNoArquivo.set(codigo, n);
+            t.set(w, g);
           }
-          let existente = codigo ? s.avaliados.find((a) => a.codigo_externo === codigo) : s.avaliados.find((a) => !a.codigo_externo && a.nome.toLowerCase() === nome.toLowerCase()), extra = validarCampos(s.camposAvaliado, { ...existente?.campos ?? {}, ...l.campos ?? {} });
-          if (extra.erros.length) {
-            r.erros.push({ linha: n, motivo: extra.erros.join("; ") });
+          let q = w ? n.avaliados.find((K) => K.codigo_externo === w) : n.avaliados.find((K) => !K.codigo_externo && K.nome.toLowerCase() === A.toLowerCase()), O = jo(n.camposAvaliado, { ...q?.campos ?? {}, ...l.campos ?? {} });
+          if (O.erros.length) {
+            s.erros.push({ linha: g, motivo: O.erros.join("; ") });
             return;
           }
-          let dados = {
-            campos: extra.valores,
-            nome,
-            codigo_externo: codigo,
+          let P = {
+            campos: O.valores,
+            nome: A,
+            codigo_externo: w,
             documento: l.documento?.trim() || void 0,
             email: l.email?.trim() || void 0,
             telefone: l.telefone?.trim() || void 0,
             endereco: l.endereco?.trim() || void 0
           };
-          if (existente) {
-            for (let [k2, v2] of Object.entries(dados))
-              if (v2 !== void 0)
-                existente[k2] = v2;
-            existente.updated_at = nowISO(), r.atualizados++;
+          if (q) {
+            for (let [K, F] of Object.entries(P))
+              if (F !== void 0)
+                q[K] = F;
+            q.updated_at = m(), s.atualizados++;
           } else
-            s.avaliados.push({ ...dados, id: uuid(), org_id: ORG.id, ativo: !0, created_at: nowISO(), updated_at: nowISO() }), r.novos++;
-        }), r;
+            n.avaliados.push({ ...P, id: _(), org_id: i.id, ativo: !0, created_at: m(), updated_at: m() }), s.novos++;
+        }), s;
       };
-      if (opts.simular)
-        return aplicar(clone(await load()));
-      return mutate("avaliados", aplicar);
+      if (o.simular)
+        return e(h(await y()));
+      return D("avaliados", e);
     },
-    async aprovacoesPendentes(quem) {
-      await amb.atraso();
-      let s = await load();
-      return s.inspecoes.filter((i) => i.status === "em_aprovacao" && aprovadoresDaEtapa(s, i).includes(quem.id) && i.responsavel_id !== quem.id).map((i) => ({
-        ...clone(i),
-        etapas: etapasDe(s, i).length,
-        avaliado: s.avaliados.find((a) => a.id === i.avaliado_id)?.nome ?? "",
-        formulario: s.formularios.find((f) => f.id === i.formulario_id)?.nome ?? "",
-        responsavel: s.membros.find((m) => m.id === i.responsavel_id)?.nome ?? ""
-      })).sort((a, b) => (a.finalizada_em ?? "").localeCompare(b.finalizada_em ?? ""));
+    async aprovacoesPendentes(a) {
+      await r.atraso();
+      let o = await y();
+      return o.inspecoes.filter((e) => e.status === "em_aprovacao" && uo(o, e).includes(a.id) && e.responsavel_id !== a.id).map((e) => ({
+        ...h(e),
+        etapas: R(o, e).length,
+        avaliado: o.avaliados.find((n) => n.id === e.avaliado_id)?.nome ?? "",
+        formulario: o.formularios.find((n) => n.id === e.formulario_id)?.nome ?? "",
+        responsavel: o.membros.find((n) => n.id === e.responsavel_id)?.nome ?? ""
+      })).sort((e, n) => (e.finalizada_em ?? "").localeCompare(n.finalizada_em ?? ""));
     },
-    async decisoesDe(quem) {
-      await amb.atraso();
-      let s = await load();
-      return s.aprovacoes.filter((a) => a.aprovador_id === quem.id).map((a) => {
-        let i = s.inspecoes.find((x) => x.id === a.inspecao_id);
-        return { ...clone(a), status: i?.status ?? "completa", avaliado: s.avaliados.find((x) => x.id === i?.avaliado_id)?.nome ?? "", formulario: s.formularios.find((f) => f.id === i?.formulario_id)?.nome ?? "", nota_pct: i?.nota_pct ?? null };
-      }).sort((a, b) => b.em.localeCompare(a.em));
+    async decisoesDe(a) {
+      await r.atraso();
+      let o = await y();
+      return o.aprovacoes.filter((e) => e.aprovador_id === a.id).map((e) => {
+        let n = o.inspecoes.find((s) => s.id === e.inspecao_id);
+        return { ...h(e), status: n?.status ?? "completa", avaliado: o.avaliados.find((s) => s.id === n?.avaliado_id)?.nome ?? "", formulario: o.formularios.find((s) => s.id === n?.formulario_id)?.nome ?? "", nota_pct: n?.nota_pct ?? null };
+      }).sort((e, n) => n.em.localeCompare(e.em));
     },
-    async aprovacaoDaInspecao(id) {
-      let s = await load(), i = s.inspecoes.find((x) => x.id === id);
-      if (!i)
+    async aprovacaoDaInspecao(a) {
+      let o = await y(), e = o.inspecoes.find((s) => s.id === a);
+      if (!e)
         throw Error("Inspeção não encontrada.");
-      let nome = (mid) => s.membros.find((m) => m.id === mid)?.nome ?? "—";
-      return etapasDe(s, i).map((e, k) => ({
-        etapa: k + 1,
-        aprovadores: e.aprovadores.map((a) => ({ id: a, nome: nome(a) })),
-        decisao: s.aprovacoes.filter((a) => a.inspecao_id === id && a.etapa === k + 1).map((a) => ({ ...clone(a), aprovador: nome(a.aprovador_id) }))[0] ?? null,
-        atual: i.status === "em_aprovacao" && i.aprovacao_etapa === k + 1
+      let n = (s) => o.membros.find((t) => t.id === s)?.nome ?? "—";
+      return R(o, e).map((s, t) => ({
+        etapa: t + 1,
+        aprovadores: s.aprovadores.map((l) => ({ id: l, nome: n(l) })),
+        decisao: o.aprovacoes.filter((l) => l.inspecao_id === a && l.etapa === t + 1).map((l) => ({ ...h(l), aprovador: n(l.aprovador_id) }))[0] ?? null,
+        atual: e.status === "em_aprovacao" && e.aprovacao_etapa === t + 1
       }));
     },
-    decidir(quem, inspecao_id, decisao, comentario = "") {
-      return exigir(quem, "aprovar"), mutate("inspecoes", (s) => {
-        let i = s.inspecoes.find((x) => x.id === inspecao_id);
-        if (!i)
+    decidir(a, o, e, n = "") {
+      return T(a, "aprovar"), D("inspecoes", (s) => {
+        let t = s.inspecoes.find((g) => g.id === o);
+        if (!t)
           throw Error("Inspeção não encontrada.");
-        if (i.status !== "em_aprovacao")
+        if (t.status !== "em_aprovacao")
           throw Error("Esta inspeção não está esperando aprovação.");
-        if (i.responsavel_id === quem.id)
+        if (t.responsavel_id === a.id)
           throw Error("Quem aplicou não aprova a própria inspeção.");
-        if (!aprovadoresDaEtapa(s, i).includes(quem.id))
+        if (!uo(s, t).includes(a.id))
           throw Error("Esta etapa não é sua.");
-        if (decisao === "reprovada" && comentario.trim().length < 3)
+        if (e === "reprovada" && n.trim().length < 3)
           throw Error("Diga o motivo da reprovação.");
-        let etapa = i.aprovacao_etapa ?? 1;
-        if (s.aprovacoes.some((a) => a.inspecao_id === i.id && a.etapa === etapa))
+        let l = t.aprovacao_etapa ?? 1;
+        if (s.aprovacoes.some((g) => g.inspecao_id === t.id && g.etapa === l))
           throw Error("Esta etapa já foi decidida.");
-        s.aprovacoes.push({ id: uuid(), org_id: ORG.id, inspecao_id: i.id, etapa, aprovador_id: quem.id, decisao, comentario: comentario.trim() || void 0, em: nowISO() });
-        let total = etapasDe(s, i).length;
-        if (decisao === "reprovada")
-          i.status = "reprovada", i.aprovacao_etapa = null;
-        else if (etapa >= total)
-          i.status = "aprovada", i.aprovacao_etapa = null;
+        s.aprovacoes.push({ id: _(), org_id: i.id, inspecao_id: t.id, etapa: l, aprovador_id: a.id, decisao: e, comentario: n.trim() || void 0, em: m() });
+        let c = R(s, t).length;
+        if (e === "reprovada")
+          t.status = "reprovada", t.aprovacao_etapa = null;
+        else if (l >= c)
+          t.status = "aprovada", t.aprovacao_etapa = null;
         else
-          i.aprovacao_etapa = etapa + 1, avisarAprovadores(s, i.id);
-        return i.updated_at = nowISO(), log(s, i.id, quem.id, decisao, { etapa, de: total, comentario: comentario.trim() || void 0 }), i.status;
+          t.aprovacao_etapa = l + 1, Z(s, t.id);
+        return t.updated_at = m(), L(s, t.id, a.id, e, { etapa: l, de: c, comentario: n.trim() || void 0 }), t.status;
       });
     },
-    gerarDadosDemo(quem) {
-      if (!quem.is_master)
+    gerarDadosDemo(a) {
+      if (!a.is_master)
         return Promise.reject(Error("Só o dono da conta pode gerar dados de exemplo."));
-      return mutate("inspecoes", (s) => {
-        let n = 0;
-        for (let h of historicoDemo(hojeNaOrg())) {
-          if (s.inspecoes.some((i) => i.client_uuid === h.client_uuid))
+      return D("inspecoes", (o) => {
+        let e = 0;
+        for (let n of he(U())) {
+          if (o.inspecoes.some((t) => t.client_uuid === n.client_uuid))
             continue;
-          if (processar(s, membroEm(s, h.responsavel_id), { ...h, respostas: h.respostas, status: "completa", anexos: [], device_id: "demo" }, h.finalizada_em).ok)
-            n++;
+          if (lo(o, I(o, n.responsavel_id), { ...n, respostas: n.respostas, status: "completa", anexos: [], device_id: "demo" }, n.finalizada_em).ok)
+            e++;
         }
-        return n;
+        return e;
       });
     },
-    async painel(quem, filtro) {
-      if (!pode(quem, "ver_painel"))
+    async painel(a, o) {
+      if (!Y(a, "ver_painel"))
         throw Error("Você não tem acesso ao painel.");
-      await amb.atraso();
-      let s = await load(), dia = (iso) => dataNaOrg(iso), dur = (Date.parse(filtro.ate) - Date.parse(filtro.de)) / 86400000 + 1, antDe = somarDias(filtro.de, -dur), antAte = somarDias(filtro.de, -1), filtroCampos = Object.entries(filtro.campos ?? {}).filter(([, v]) => v), avOk = (id) => !filtroCampos.length || filtroCampos.every(([k, v]) => s.avaliados.find((a) => a.id === id)?.campos?.[k] === v), base = s.inspecoes.filter((i) => i.status !== "rascunho" && i.finalizada_em && podeVerInspecao(quem, i) && (!filtro.formulario_id || i.formulario_id === filtro.formulario_id) && avOk(i.avaliado_id)), no = (de, ate) => base.filter((i) => {
-        let d = dia(i.finalizada_em);
-        return d >= de && d <= ate;
-      }), atual = no(filtro.de, filtro.ate), anterior = no(antDe, antAte), media = (xs) => {
-        let v = xs.map((i) => i.nota_pct).filter((x) => x !== null);
-        return v.length ? v.reduce((a, b) => a + b, 0) / v.length : null;
-      }, ncPor = (xs) => xs.length ? xs.reduce((a, i) => a + i.qtd_nao_conformidades, 0) / xs.length : null, agora = Date.now(), ocs = s.ocorrencias.flatMap((o) => {
-        let a = s.agendamentos.find((x) => x.id === o.agendamento_id);
-        if (!a || !podeVerAgendamento(quem, a) || filtro.formulario_id && a.formulario_id !== filtro.formulario_id)
+      await r.atraso();
+      let e = await y(), n = (S) => C(S), s = (Date.parse(o.ate) - Date.parse(o.de)) / 86400000 + 1, t = ro(o.de, -s), l = ro(o.de, -1), c = Object.entries(o.campos ?? {}).filter(([, S]) => S), g = (S) => !c.length || c.every(([M, j]) => e.avaliados.find((V) => V.id === S)?.campos?.[M] === j), A = e.inspecoes.filter((S) => S.status !== "rascunho" && S.finalizada_em && bo(a, S) && (!o.formulario_id || S.formulario_id === o.formulario_id) && g(S.avaliado_id)), w = (S, M) => A.filter((j) => {
+        let V = n(j.finalizada_em);
+        return V >= S && V <= M;
+      }), q = w(o.de, o.ate), O = w(t, l), P = (S) => {
+        let M = S.map((j) => j.nota_pct).filter((j) => j !== null);
+        return M.length ? M.reduce((j, V) => j + V, 0) / M.length : null;
+      }, K = (S) => S.length ? S.reduce((M, j) => M + j.qtd_nao_conformidades, 0) / S.length : null, F = Date.now(), ho = e.ocorrencias.flatMap((S) => {
+        let M = e.agendamentos.find((V) => V.id === S.agendamento_id);
+        if (!M || !co(a, M) || o.formulario_id && M.formulario_id !== o.formulario_id)
           return [];
-        let d = dia(o.previsto_em);
-        return d >= filtro.de && d <= filtro.ate ? [situacaoOcorrencia(o, a, agora)] : [];
-      }), cumpridas = ocs.filter((x) => x === "completa").length, atrasadas = ocs.filter((x) => x === "atrasada").length, segunda = (d) => somarDias(d, -(((/* @__PURE__ */ new Date(d + "T12:00:00Z")).getUTCDay() + 6) % 7)), semanas = [];
-      for (let w = segunda(filtro.de);w <= filtro.ate; w = somarDias(w, 7)) {
-        let xs = atual.filter((i) => segunda(dia(i.finalizada_em)) === w);
-        semanas.push({ semana: w, nota: media(xs), qtd: xs.length });
+        let j = n(S.previsto_em);
+        return j >= o.de && j <= o.ate ? [To(S, M, F)] : [];
+      }), mo = ho.filter((S) => S === "completa").length, po = ho.filter((S) => S === "atrasada").length, Yo = (S) => ro(S, -(((/* @__PURE__ */ new Date(S + "T12:00:00Z")).getUTCDay() + 6) % 7)), Go = [];
+      for (let S = Yo(o.de);S <= o.ate; S = ro(S, 7)) {
+        let M = q.filter((j) => Yo(n(j.finalizada_em)) === S);
+        Go.push({ semana: S, nota: P(M), qtd: M.length });
       }
-      let porAvaliado = [...new Set(atual.map((i) => i.avaliado_id))].map((id) => {
-        let xs = atual.filter((i) => i.avaliado_id === id);
-        return { id, nome: s.avaliados.find((a) => a.id === id)?.nome ?? "Avaliado removido", nota: media(xs), qtd: xs.length, ncs: xs.reduce((a, i) => a + i.qtd_nao_conformidades, 0) };
-      }).sort((a, b) => (a.nota ?? 101) - (b.nota ?? 101) || a.nome.localeCompare(b.nome, "pt-BR")), titulos = /* @__PURE__ */ new Map, ncCont = /* @__PURE__ */ new Map;
-      for (let i of atual) {
-        let v = s.versoes.find((x) => x.id === i.formulario_versao_id), form = s.formularios.find((f) => f.id === i.formulario_id)?.nome ?? "";
-        for (let q of v?.definicao.topicos.flatMap((t) => t.questoes) ?? [])
-          titulos.set(i.formulario_id + "|" + q.key, q.titulo);
-        for (let [k, r] of Object.entries(i.resultado.questoes)) {
-          if (r.conforme === null)
+      let Ae = [...new Set(q.map((S) => S.avaliado_id))].map((S) => {
+        let M = q.filter((j) => j.avaliado_id === S);
+        return { id: S, nome: e.avaliados.find((j) => j.id === S)?.nome ?? "Avaliado removido", nota: P(M), qtd: M.length, ncs: M.reduce((j, V) => j + V.qtd_nao_conformidades, 0) };
+      }).sort((S, M) => (S.nota ?? 101) - (M.nota ?? 101) || S.nome.localeCompare(M.nome, "pt-BR")), Wo = /* @__PURE__ */ new Map, Po = /* @__PURE__ */ new Map;
+      for (let S of q) {
+        let M = e.versoes.find((V) => V.id === S.formulario_versao_id), j = e.formularios.find((V) => V.id === S.formulario_id)?.nome ?? "";
+        for (let V of M?.definicao.topicos.flatMap((xo) => xo.questoes) ?? [])
+          Wo.set(S.formulario_id + "|" + V.key, V.titulo);
+        for (let [V, xo] of Object.entries(S.resultado.questoes)) {
+          if (xo.conforme === null)
             continue;
-          let c = ncCont.get(i.formulario_id + "|" + k) ?? { n: 0, aplicaveis: 0, formulario: form };
-          if (c.aplicaveis++, r.conforme === !1)
-            c.n++;
-          ncCont.set(i.formulario_id + "|" + k, c);
+          let Io = Po.get(S.formulario_id + "|" + V) ?? { n: 0, aplicaveis: 0, formulario: j };
+          if (Io.aplicaveis++, xo.conforme === !1)
+            Io.n++;
+          Po.set(S.formulario_id + "|" + V, Io);
         }
       }
-      let topNcs = [...ncCont.entries()].filter(([, c]) => c.n > 0).map(([k, c]) => ({ chave: k, titulo: titulos.get(k) ?? "Questão", formulario: c.formulario, n: c.n, pct: c.n / c.aplicaveis * 100 })).sort((a, b) => b.n - a.n || b.pct - a.pct).slice(0, 8);
+      let ke = [...Po.entries()].filter(([, S]) => S.n > 0).map(([S, M]) => ({ chave: S, titulo: Wo.get(S) ?? "Questão", formulario: M.formulario, n: M.n, pct: M.n / M.aplicaveis * 100 })).sort((S, M) => M.n - S.n || M.pct - S.pct).slice(0, 8);
       return {
-        periodo: { de: filtro.de, ate: filtro.ate, anterior: { de: antDe, ate: antAte } },
+        periodo: { de: o.de, ate: o.ate, anterior: { de: t, ate: l } },
         kpis: {
-          inspecoes: { atual: atual.length, anterior: anterior.length },
-          nota: { atual: media(atual), anterior: media(anterior) },
-          ncs_por_inspecao: { atual: ncPor(atual), anterior: ncPor(anterior) },
-          agenda: { cumpridas, atrasadas, pct: cumpridas + atrasadas ? cumpridas / (cumpridas + atrasadas) * 100 : null },
-          planos_em_atraso: s.planos.filter((p) => situacao(p, hojeNaOrg()) === "em_atraso" && (!filtro.formulario_id || p.formulario_id === filtro.formulario_id) && base.some((i) => i.id === p.inspecao_id)).length
+          inspecoes: { atual: q.length, anterior: O.length },
+          nota: { atual: P(q), anterior: P(O) },
+          ncs_por_inspecao: { atual: K(q), anterior: K(O) },
+          agenda: { cumpridas: mo, atrasadas: po, pct: mo + po ? mo / (mo + po) * 100 : null },
+          planos_em_atraso: e.planos.filter((S) => to(S, U()) === "em_atraso" && (!o.formulario_id || S.formulario_id === o.formulario_id) && A.some((M) => M.id === S.inspecao_id)).length
         },
-        semanas,
-        porAvaliado,
-        topNcs,
-        formularios: s.formularios.filter((f) => !f.arquivado).map((f) => ({ id: f.id, nome: f.nome })),
-        camposFiltro: s.camposAvaliado.filter((c) => c.tipo === "lista").map((c) => ({ id: c.id, nome: c.nome, opcoes: c.opcoes ?? [] }))
+        semanas: Go,
+        porAvaliado: Ae,
+        topNcs: ke,
+        formularios: e.formularios.filter((S) => !S.arquivado).map((S) => ({ id: S.id, nome: S.nome })),
+        camposFiltro: e.camposAvaliado.filter((S) => S.tipo === "lista").map((S) => ({ id: S.id, nome: S.nome, opcoes: S.opcoes ?? [] }))
       };
     },
     async rodarAgenda() {
-      return rodarAgenda();
+      return vo();
     },
-    async listarOcorrencias(quem, filtro = {}) {
-      await rodarAgenda(), await amb.atraso();
-      let s = await load(), agora = Date.now(), busca = (filtro.busca ?? "").trim().toLowerCase(), nomeM = new Map(s.membros.map((x) => [x.id, x.nome]));
-      return s.ocorrencias.flatMap((o) => {
-        let a = s.agendamentos.find((x) => x.id === o.agendamento_id);
-        if (!a || !podeVerAgendamento(quem, a))
+    async listarOcorrencias(a, o = {}) {
+      await vo(), await r.atraso();
+      let e = await y(), n = Date.now(), s = (o.busca ?? "").trim().toLowerCase(), t = new Map(e.membros.map((l) => [l.id, l.nome]));
+      return e.ocorrencias.flatMap((l) => {
+        let c = e.agendamentos.find((q) => q.id === l.agendamento_id);
+        if (!c || !co(a, c))
           return [];
-        let dia = dataNaOrg(o.previsto_em, a.fuso_horario);
-        if (filtro.de && dia < filtro.de)
+        let g = C(l.previsto_em, c.fuso_horario);
+        if (o.de && g < o.de)
           return [];
-        if (filtro.ate && dia > filtro.ate)
+        if (o.ate && g > o.ate)
           return [];
-        let situacao = situacaoOcorrencia(o, a, agora);
-        if (filtro.situacao && situacao !== filtro.situacao)
+        let A = To(l, c, n);
+        if (o.situacao && A !== o.situacao)
           return [];
-        let row = {
-          ...clone(o),
-          situacao,
-          agendamento: clone(a),
-          descricao: descreverRegra(a),
-          formulario: s.formularios.find((f) => f.id === a.formulario_id)?.nome ?? "Formulário removido",
-          avaliado: s.avaliados.find((x) => x.id === a.avaliado_id)?.nome ?? "Avaliado removido",
-          responsaveis: a.responsaveis.map((id) => nomeM.get(id) ?? "—")
+        let w = {
+          ...h(l),
+          situacao: A,
+          agendamento: h(c),
+          descricao: zo(c),
+          formulario: e.formularios.find((q) => q.id === c.formulario_id)?.nome ?? "Formulário removido",
+          avaliado: e.avaliados.find((q) => q.id === c.avaliado_id)?.nome ?? "Avaliado removido",
+          responsaveis: c.responsaveis.map((q) => t.get(q) ?? "—")
         };
-        if (busca && ![row.formulario, row.avaliado, ...row.responsaveis].join(" ").toLowerCase().includes(busca))
+        if (s && ![w.formulario, w.avaliado, ...w.responsaveis].join(" ").toLowerCase().includes(s))
           return [];
-        return [row];
-      }).sort((x, y) => x.previsto_em.localeCompare(y.previsto_em) || x.avaliado.localeCompare(y.avaliado, "pt-BR"));
+        return [w];
+      }).sort((l, c) => l.previsto_em.localeCompare(c.previsto_em) || l.avaliado.localeCompare(c.avaliado, "pt-BR"));
     },
-    async obterAgendamento(id) {
-      let a = (await load()).agendamentos.find((x) => x.id === id);
-      if (!a)
+    async obterAgendamento(a) {
+      let o = (await y()).agendamentos.find((e) => e.id === a);
+      if (!o)
         throw Error("Agendamento não encontrado.");
-      return clone(a);
+      return h(o);
     },
-    async salvarAgendamento(quem, dados) {
-      return exigir(quem, "gerenciar_agendamentos"), await amb.atraso(), await mutate("agenda", (s) => {
-        let regra = {
-          data_inicio: dados.data_inicio,
-          horarios: dados.dia_inteiro ? [] : [...new Set(dados.horarios)].sort(),
-          dia_inteiro: dados.dia_inteiro,
-          fuso_horario: ORG.fuso_horario,
-          recorrencia: dados.recorrencia,
-          dias_semana: dados.recorrencia === "semanal" ? [...new Set(dados.dias_semana ?? [])].sort() : void 0,
-          termino: dados.recorrencia === "nenhuma" ? "nunca" : dados.termino,
-          termino_data: dados.termino === "data" ? dados.termino_data : void 0,
-          termino_qtd: dados.termino === "quantidade" ? dados.termino_qtd : void 0
-        }, problemas = validarRegra(regra), f = s.formularios.find((x) => x.id === dados.formulario_id && !x.arquivado);
-        if (!f)
-          problemas.push("Escolha um formulário.");
-        else if (!f.versao_publicada_id)
-          problemas.push("Este formulário ainda não foi publicado.");
-        if (!s.avaliados.some((x) => x.id === dados.avaliado_id))
-          problemas.push("Escolha o avaliado.");
-        else if (f && f.avaliados_vinculados.length && !f.avaliados_vinculados.includes(dados.avaliado_id))
-          problemas.push("Este formulário não vale para o avaliado escolhido.");
-        if (!dados.responsaveis.length)
-          problemas.push("Escolha quem vai aplicar.");
-        let efetivos = resolverMembros(s.membros, s.funcoes, s.equipes);
-        for (let id of dados.responsaveis) {
-          let r = efetivos.find((x) => x.id === id);
-          if (!r || !r.ativo)
-            problemas.push("Uma das pessoas escolhidas não está mais ativa.");
-          else if (!pode(r, "aplicar") || !podeFormulario(r, dados.formulario_id) || !podeAvaliado(r, dados.avaliado_id))
-            problemas.push(`${r.nome} não tem acesso a este formulário ou avaliado. Libere em Permissões.`);
+    async salvarAgendamento(a, o) {
+      return T(a, "gerenciar_agendamentos"), await r.atraso(), await D("agenda", (n) => {
+        let s = {
+          data_inicio: o.data_inicio,
+          horarios: o.dia_inteiro ? [] : [...new Set(o.horarios)].sort(),
+          dia_inteiro: o.dia_inteiro,
+          fuso_horario: i.fuso_horario,
+          recorrencia: o.recorrencia,
+          dias_semana: o.recorrencia === "semanal" ? [...new Set(o.dias_semana ?? [])].sort() : void 0,
+          termino: o.recorrencia === "nenhuma" ? "nunca" : o.termino,
+          termino_data: o.termino === "data" ? o.termino_data : void 0,
+          termino_qtd: o.termino === "quantidade" ? o.termino_qtd : void 0
+        }, t = le(s), l = n.formularios.find((w) => w.id === o.formulario_id && !w.arquivado);
+        if (!l)
+          t.push("Escolha um formulário.");
+        else if (!l.versao_publicada_id)
+          t.push("Este formulário ainda não foi publicado.");
+        if (!n.avaliados.some((w) => w.id === o.avaliado_id))
+          t.push("Escolha o avaliado.");
+        else if (l && l.avaliados_vinculados.length && !l.avaliados_vinculados.includes(o.avaliado_id))
+          t.push("Este formulário não vale para o avaliado escolhido.");
+        if (!o.responsaveis.length)
+          t.push("Escolha quem vai aplicar.");
+        let c = so(n.membros, n.funcoes, n.equipes);
+        for (let w of o.responsaveis) {
+          let q = c.find((O) => O.id === w);
+          if (!q || !q.ativo)
+            t.push("Uma das pessoas escolhidas não está mais ativa.");
+          else if (!Y(q, "aplicar") || !W(q, o.formulario_id) || !N(q, o.avaliado_id))
+            t.push(`${q.nome} não tem acesso a este formulário ou avaliado. Libere em Permissões.`);
         }
-        if (problemas.length)
-          throw Error(problemas.join(" "));
-        let a;
-        if (dados.id) {
-          let atual = s.agendamentos.find((x) => x.id === dados.id);
-          if (!atual)
+        if (t.length)
+          throw Error(t.join(" "));
+        let g;
+        if (o.id) {
+          let w = n.agendamentos.find((O) => O.id === o.id);
+          if (!w)
             throw Error("Agendamento não encontrado.");
-          let agora = nowISO();
-          if (s.ocorrencias = s.ocorrencias.filter((o) => !(o.agendamento_id === atual.id && o.status === "pendente" && o.previsto_em > agora)), Object.assign(atual, regra, { formulario_id: dados.formulario_id, avaliado_id: dados.avaliado_id, responsaveis: [...dados.responsaveis], ativo: !0, updated_at: agora }), delete atual.dias_semana, regra.dias_semana)
-            atual.dias_semana = regra.dias_semana;
-          a = atual;
+          let q = m();
+          if (n.ocorrencias = n.ocorrencias.filter((O) => !(O.agendamento_id === w.id && O.status === "pendente" && O.previsto_em > q)), Object.assign(w, s, { formulario_id: o.formulario_id, avaliado_id: o.avaliado_id, responsaveis: [...o.responsaveis], ativo: !0, updated_at: q }), delete w.dias_semana, s.dias_semana)
+            w.dias_semana = s.dias_semana;
+          g = w;
         } else
-          a = {
-            ...regra,
-            id: uuid(),
-            org_id: ORG.id,
-            formulario_id: dados.formulario_id,
-            avaliado_id: dados.avaliado_id,
-            responsaveis: [...dados.responsaveis],
+          g = {
+            ...s,
+            id: _(),
+            org_id: i.id,
+            formulario_id: o.formulario_id,
+            avaliado_id: o.avaliado_id,
+            responsaveis: [...o.responsaveis],
             ativo: !0,
             materializado_ate: null,
-            criado_por: quem.id,
-            created_at: nowISO(),
-            updated_at: nowISO()
-          }, s.agendamentos.push(a);
-        let geradas = materializar(s, a);
-        return { agendamento: clone(a), geradas };
+            criado_por: a.id,
+            created_at: m(),
+            updated_at: m()
+          }, n.agendamentos.push(g);
+        let A = no(n, g);
+        return { agendamento: h(g), geradas: A };
       });
     },
-    inativarOcorrencia(quem, id, escopo, justificativa) {
-      return mutate("agenda", (s) => {
-        let o = s.ocorrencias.find((x) => x.id === id);
-        if (!o)
+    inativarOcorrencia(a, o, e, n) {
+      return D("agenda", (s) => {
+        let t = s.ocorrencias.find((g) => g.id === o);
+        if (!t)
           throw Error("Ocorrência não encontrada.");
-        let a = s.agendamentos.find((x) => x.id === o.agendamento_id);
-        if (!pode(quem, "gerenciar_agendamentos") && !a.responsaveis.includes(quem.id))
+        let l = s.agendamentos.find((g) => g.id === t.agendamento_id);
+        if (!Y(a, "gerenciar_agendamentos") && !l.responsaveis.includes(a.id))
           throw Error("Você não tem permissão para isso.");
-        if (justificativa.trim().length < 3)
+        if (n.trim().length < 3)
           throw Error("Escreva o motivo.");
-        if (o.status !== "pendente")
+        if (t.status !== "pendente")
           throw Error("Só dá para inativar o que ainda está pendente.");
-        let alvo = escopo === "esta" ? [o] : s.ocorrencias.filter((x) => x.agendamento_id === a.id && x.status === "pendente" && x.previsto_em >= o.previsto_em);
-        for (let x of alvo)
-          Object.assign(x, { status: "inativa", justificativa: justificativa.trim(), inativada_por: quem.id, updated_at: nowISO() });
-        if (escopo === "seguintes")
-          a.ativo = !1, a.updated_at = nowISO();
-        return alvo.length;
+        let c = e === "esta" ? [t] : s.ocorrencias.filter((g) => g.agendamento_id === l.id && g.status === "pendente" && g.previsto_em >= t.previsto_em);
+        for (let g of c)
+          Object.assign(g, { status: "inativa", justificativa: n.trim(), inativada_por: a.id, updated_at: m() });
+        if (e === "seguintes")
+          l.ativo = !1, l.updated_at = m();
+        return c.length;
       });
     },
     async listarPessoas() {
-      return await amb.atraso(), clone((await load()).membros).sort((a, b) => Number(b.ativo) - Number(a.ativo) || a.nome.localeCompare(b.nome, "pt-BR"));
+      return await r.atraso(), h((await y()).membros).sort((a, o) => Number(o.ativo) - Number(a.ativo) || a.nome.localeCompare(o.nome, "pt-BR"));
     },
-    convidarPessoa(quem, dados) {
-      exigir(quem, "gerenciar_permissoes");
-      let nome = dados.nome.trim(), email = dados.email.trim().toLowerCase();
-      if (!nome)
+    convidarPessoa(a, o) {
+      T(a, "gerenciar_permissoes");
+      let e = o.nome.trim(), n = o.email.trim().toLowerCase();
+      if (!e)
         return Promise.reject(Error("Informe o nome."));
-      if (!/^\S+@\S+\.\S+$/.test(email))
+      if (!/^\S+@\S+\.\S+$/.test(n))
         return Promise.reject(Error("Informe um e-mail válido."));
-      return mutate("membros", (s) => {
-        if (s.membros.some((m) => m.email.toLowerCase() === email))
+      return D("membros", (s) => {
+        if (s.membros.some((l) => l.email.toLowerCase() === n))
           throw Error("Já existe uma pessoa com esse e-mail.");
-        if (!s.funcoes.some((f) => f.id === dados.funcao_id))
+        if (!s.funcoes.some((l) => l.id === o.funcao_id))
           throw Error("Escolha uma função.");
-        let m = { id: uuid(), org_id: ORG.id, nome, email, funcao_id: dados.funcao_id, is_master: !1, ativo: !0, acesso: clone(ACESSO_PESSOA_NOVA), created_at: nowISO() };
-        return s.membros.push(m), filaEmail(s, {
-          idem_key: `convite:${m.id}`,
-          para: email,
-          assunto: `Você foi convidado para ${ORG.nome} no Inspeta`,
-          texto: `${quem.nome} liberou seu acesso como ${s.funcoes.find((f) => f.id === m.funcao_id)?.nome}. Entre com este e-mail e crie sua senha no primeiro acesso.`,
-          link: `${amb.urlApp()}#/entrar`
-        }), clone(m);
+        let t = { id: _(), org_id: i.id, nome: e, email: n, funcao_id: o.funcao_id, is_master: !1, ativo: !0, acesso: h(Ho), created_at: m() };
+        return s.membros.push(t), fo(s, {
+          idem_key: `convite:${t.id}`,
+          para: n,
+          assunto: `Você foi convidado para ${i.nome} no Inspeta`,
+          texto: `${a.nome} liberou seu acesso como ${s.funcoes.find((l) => l.id === t.funcao_id)?.nome}. Entre com este e-mail e crie sua senha no primeiro acesso.`,
+          link: `${r.urlApp()}#/entrar`
+        }), h(t);
       });
     },
-    salvarPessoa(quem, id, patch) {
-      return exigir(quem, "gerenciar_permissoes"), mutate("membros", (s) => {
-        let m = s.membros.find((x) => x.id === id);
-        if (!m)
+    salvarPessoa(a, o, e) {
+      return T(a, "gerenciar_permissoes"), D("membros", (n) => {
+        let s = n.membros.find((t) => t.id === o);
+        if (!s)
           throw Error("Pessoa não encontrada.");
-        if (m.is_master && (patch.funcao_id !== void 0 && patch.funcao_id !== m.funcao_id || patch.ativo === !1))
+        if (s.is_master && (e.funcao_id !== void 0 && e.funcao_id !== s.funcao_id || e.ativo === !1))
           throw Error("O dono da conta é sempre Administrador e não pode ser desativado.");
-        if (patch.ativo === !1 && id === quem.id)
+        if (e.ativo === !1 && o === a.id)
           throw Error("Você não pode desativar o seu próprio acesso.");
-        if (patch.funcao_id && !s.funcoes.some((f) => f.id === patch.funcao_id))
+        if (e.funcao_id && !n.funcoes.some((t) => t.id === e.funcao_id))
           throw Error("Função não encontrada.");
-        if (patch.nome !== void 0 && !patch.nome.trim())
+        if (e.nome !== void 0 && !e.nome.trim())
           throw Error("Informe o nome.");
-        if (patch.acesso)
-          patch = { ...patch, acesso: limparAcesso(s, patch.acesso, id) };
-        return Object.assign(m, clone(patch)), clone(m);
+        if (e.acesso)
+          e = { ...e, acesso: io(n, e.acesso, o) };
+        return Object.assign(s, h(e)), h(s);
       });
     },
     async listarFuncoes() {
-      await amb.atraso();
-      let s = await load();
-      return s.funcoes.map((f) => ({ ...clone(f), qtd_pessoas: s.membros.filter((m) => m.ativo && m.funcao_id === f.id).length }));
+      await r.atraso();
+      let a = await y();
+      return a.funcoes.map((o) => ({ ...h(o), qtd_pessoas: a.membros.filter((e) => e.ativo && e.funcao_id === o.id).length }));
     },
-    criarFuncao(quem, nome, copiarDe) {
-      return exigir(quem, "gerenciar_permissoes"), mutate("membros", (s) => {
-        let n = nome.trim();
-        if (!n)
+    criarFuncao(a, o, e) {
+      return T(a, "gerenciar_permissoes"), D("membros", (n) => {
+        let s = o.trim();
+        if (!s)
           throw Error("Dê um nome à função.");
-        if (s.funcoes.some((f) => f.nome.toLowerCase() === n.toLowerCase()))
+        if (n.funcoes.some((c) => c.nome.toLowerCase() === s.toLowerCase()))
           throw Error("Já existe uma função com esse nome.");
-        let base = s.funcoes.find((f) => f.id === copiarDe), f = { id: uuid(), nome: n, acoes: base ? [...base.acoes] : ["aplicar"] };
-        return s.funcoes.push(f), clone(f);
+        let t = n.funcoes.find((c) => c.id === e), l = { id: _(), nome: s, acoes: t ? [...t.acoes] : ["aplicar"] };
+        return n.funcoes.push(l), h(l);
       });
     },
-    salvarFuncao(quem, f) {
-      return exigir(quem, "gerenciar_permissoes"), mutate("membros", (s) => {
-        let atual = s.funcoes.find((x) => x.id === f.id);
-        if (!atual)
+    salvarFuncao(a, o) {
+      return T(a, "gerenciar_permissoes"), D("membros", (e) => {
+        let n = e.funcoes.find((t) => t.id === o.id);
+        if (!n)
           throw Error("Função não encontrada.");
-        if (atual.sistema)
+        if (n.sistema)
           throw Error("A função Administrador tem todas as ações e não pode ser alterada.");
-        let n = f.nome.trim();
-        if (!n)
+        let s = o.nome.trim();
+        if (!s)
           throw Error("Dê um nome à função.");
-        if (s.funcoes.some((x) => x.id !== f.id && x.nome.toLowerCase() === n.toLowerCase()))
+        if (e.funcoes.some((t) => t.id !== o.id && t.nome.toLowerCase() === s.toLowerCase()))
           throw Error("Já existe uma função com esse nome.");
-        return atual.nome = n, atual.acoes = [...new Set(f.acoes)], clone(atual);
+        return n.nome = s, n.acoes = [...new Set(o.acoes)], h(n);
       });
     },
-    excluirFuncao(quem, id) {
-      return exigir(quem, "gerenciar_permissoes"), mutate("membros", (s) => {
-        let f = s.funcoes.find((x) => x.id === id);
-        if (!f)
+    excluirFuncao(a, o) {
+      return T(a, "gerenciar_permissoes"), D("membros", (e) => {
+        let n = e.funcoes.find((t) => t.id === o);
+        if (!n)
           return;
-        if (f.sistema)
+        if (n.sistema)
           throw Error("A função Administrador não pode ser excluída.");
-        let n = s.membros.filter((m) => m.funcao_id === id).length;
-        if (n)
-          throw Error(`Há ${n} ${n === 1 ? "pessoa" : "pessoas"} com esta função. Troque a função delas antes de excluir.`);
-        s.funcoes = s.funcoes.filter((x) => x.id !== id);
+        let s = e.membros.filter((t) => t.funcao_id === o).length;
+        if (s)
+          throw Error(`Há ${s} ${s === 1 ? "pessoa" : "pessoas"} com esta função. Troque a função delas antes de excluir.`);
+        e.funcoes = e.funcoes.filter((t) => t.id !== o);
       });
     },
     async listarEquipes() {
-      return await amb.atraso(), clone((await load()).equipes).sort((a, b) => a.nome.localeCompare(b.nome, "pt-BR"));
+      return await r.atraso(), h((await y()).equipes).sort((a, o) => a.nome.localeCompare(o.nome, "pt-BR"));
     },
-    criarEquipe(quem, nome) {
-      return exigir(quem, "gerenciar_permissoes"), mutate("membros", (s) => {
-        let n = nome.trim();
+    criarEquipe(a, o) {
+      return T(a, "gerenciar_permissoes"), D("membros", (e) => {
+        let n = o.trim();
         if (!n)
           throw Error("Dê um nome à equipe.");
-        if (s.equipes.some((e) => e.nome.toLowerCase() === n.toLowerCase()))
+        if (e.equipes.some((t) => t.nome.toLowerCase() === n.toLowerCase()))
           throw Error("Já existe uma equipe com esse nome.");
-        let e = { id: uuid(), org_id: ORG.id, nome: n, membros: [], acesso: clone(ACESSO_EQUIPE_NOVA) };
-        return s.equipes.push(e), clone(e);
+        let s = { id: _(), org_id: i.id, nome: n, membros: [], acesso: h(oe) };
+        return e.equipes.push(s), h(s);
       });
     },
-    salvarEquipe(quem, e) {
-      return exigir(quem, "gerenciar_permissoes"), mutate("membros", (s) => {
-        let atual = s.equipes.find((x) => x.id === e.id);
-        if (!atual)
+    salvarEquipe(a, o) {
+      return T(a, "gerenciar_permissoes"), D("membros", (e) => {
+        let n = e.equipes.find((t) => t.id === o.id);
+        if (!n)
           throw Error("Equipe não encontrada.");
-        let n = e.nome.trim();
-        if (!n)
+        let s = o.nome.trim();
+        if (!s)
           throw Error("Dê um nome à equipe.");
-        if (s.equipes.some((x) => x.id !== e.id && x.nome.toLowerCase() === n.toLowerCase()))
+        if (e.equipes.some((t) => t.id !== o.id && t.nome.toLowerCase() === s.toLowerCase()))
           throw Error("Já existe uma equipe com esse nome.");
-        return atual.nome = n, atual.membros = [...new Set(e.membros)].filter((id) => s.membros.some((m) => m.id === id)), atual.acesso = limparAcesso(s, e.acesso), clone(atual);
+        return n.nome = s, n.membros = [...new Set(o.membros)].filter((t) => e.membros.some((l) => l.id === t)), n.acesso = io(e, o.acesso), h(n);
       });
     },
-    excluirEquipe(quem, id) {
-      return exigir(quem, "gerenciar_permissoes"), mutate("membros", (s) => {
-        s.equipes = s.equipes.filter((e) => e.id !== id);
-        for (let a of [...s.membros.map((m) => m.acesso), ...s.equipes.map((e) => e.acesso)])
-          a.ver_equipes = a.ver_equipes.filter((x) => x !== id);
+    excluirEquipe(a, o) {
+      return T(a, "gerenciar_permissoes"), D("membros", (e) => {
+        e.equipes = e.equipes.filter((n) => n.id !== o);
+        for (let n of [...e.membros.map((s) => s.acesso), ...e.equipes.map((s) => s.acesso)])
+          n.ver_equipes = n.ver_equipes.filter((s) => s !== o);
       });
     },
-    async _podeVer(quem, tipo, id) {
-      let s = await load(), verInsp = (i) => !!i && (podeVerInspecao(quem, i) || ehAprovador(s, quem, i));
-      if (tipo === "inspecao")
-        return verInsp(s.inspecoes.find((i) => i.id === id));
-      if (id.startsWith("logo-"))
+    async _podeVer(a, o, e) {
+      let n = await y(), s = (c) => !!c && (bo(a, c) || X(n, a, c));
+      if (o === "inspecao")
+        return s(n.inspecoes.find((c) => c.id === e));
+      if (e.startsWith("logo-"))
         return !0;
-      let dono = s.inspecoes.find((i) => i.anexos.some((a) => a.client_uuid === id));
-      if (dono)
-        return verInsp(dono);
-      let plano = s.planos.find((p) => p.anexos.some((a) => a.client_uuid === id));
-      if (plano)
-        return pode(quem, "gerenciar_planos") || verInsp(s.inspecoes.find((i) => i.id === plano.inspecao_id));
+      let t = n.inspecoes.find((c) => c.anexos.some((g) => g.client_uuid === e));
+      if (t)
+        return s(t);
+      let l = n.planos.find((c) => c.anexos.some((g) => g.client_uuid === e));
+      if (l)
+        return Y(a, "gerenciar_planos") || s(n.inspecoes.find((c) => c.id === l.inspecao_id));
       return !1;
     },
-    async _membroPorEmail(email) {
-      let s = await load();
-      return resolverMembros(s.membros, s.funcoes, s.equipes).find((m) => m.email.toLowerCase() === email.toLowerCase()) ?? null;
+    async _membroPorEmail(a) {
+      let o = await y();
+      return so(o.membros, o.funcoes, o.equipes).find((e) => e.email.toLowerCase() === a.toLowerCase()) ?? null;
     },
     async _membrosResolvidos() {
-      let s = await load();
-      return resolverMembros(s.membros, s.funcoes, s.equipes);
+      let a = await y();
+      return so(a.membros, a.funcoes, a.equipes);
     },
     async _reset() {
-      await amb.local.limpar(), amb.aviso("reset");
+      await r.local.limpar(), r.aviso("reset");
     }
   };
-  function limparAcesso(s, a, dono) {
-    let fs = new Set(s.formularios.map((f) => f.id)), as = new Set(s.avaliados.map((x) => x.id)), ms = new Set(s.membros.map((m) => m.id)), es = new Set(s.equipes.map((e) => e.id));
+  function io(a, o, e) {
+    let n = new Set(a.formularios.map((c) => c.id)), s = new Set(a.avaliados.map((c) => c.id)), t = new Set(a.membros.map((c) => c.id)), l = new Set(a.equipes.map((c) => c.id));
     return {
-      formularios: a.formularios === "todos" ? "todos" : [...new Set(a.formularios)].filter((x) => fs.has(x)),
-      avaliados: a.avaliados === "todos" ? "todos" : [...new Set(a.avaliados)].filter((x) => as.has(x)),
-      ver_membros: [...new Set(a.ver_membros)].filter((x) => ms.has(x) && x !== dono),
-      ver_equipes: [...new Set(a.ver_equipes)].filter((x) => es.has(x))
+      formularios: o.formularios === "todos" ? "todos" : [...new Set(o.formularios)].filter((c) => n.has(c)),
+      avaliados: o.avaliados === "todos" ? "todos" : [...new Set(o.avaliados)].filter((c) => s.has(c)),
+      ver_membros: [...new Set(o.ver_membros)].filter((c) => t.has(c) && c !== e),
+      ver_equipes: [...new Set(o.ver_equipes)].filter((c) => l.has(c))
     };
   }
-  function podeVerAgendamento(m, a) {
-    return pode(m, "gerenciar_agendamentos") || pode(m, "ver_todas_inspecoes") || a.responsaveis.some((id) => id === m.id || m.ve_inspecoes_de.includes(id));
+  function co(a, o) {
+    return Y(a, "gerenciar_agendamentos") || Y(a, "ver_todas_inspecoes") || o.responsaveis.some((e) => e === a.id || a.ve_inspecoes_de.includes(e));
   }
-  function dataNaOrg(iso, fuso = ORG.fuso_horario) {
-    return new Intl.DateTimeFormat("en-CA", { timeZone: fuso }).format(new Date(iso));
+  function C(a, o = i.fuso_horario) {
+    return new Intl.DateTimeFormat("en-CA", { timeZone: o }).format(new Date(a));
   }
-  function materializar(s, a, agora = Date.now()) {
-    if (!a.ativo)
+  function no(a, o, e = Date.now()) {
+    if (!o.ativo)
       return 0;
-    let hoje = dataNaOrg(new Date(agora).toISOString(), a.fuso_horario), ate = somarDias(hoje, 14), n = 0;
-    for (let previsto_em of instantesDaRegra(a, hoje, ate)) {
-      if (Date.parse(limiteDaOcorrencia(previsto_em, a)) <= agora)
+    let n = C(new Date(e).toISOString(), o.fuso_horario), s = ro(n, 14), t = 0;
+    for (let l of de(o, n, s)) {
+      if (Date.parse(Ao(l, o)) <= e)
         continue;
-      if (s.ocorrencias.some((o) => o.agendamento_id === a.id && o.previsto_em === previsto_em))
+      if (a.ocorrencias.some((c) => c.agendamento_id === o.id && c.previsto_em === l))
         continue;
-      s.ocorrencias.push({ id: uuid(), org_id: ORG.id, agendamento_id: a.id, previsto_em, status: "pendente", created_at: nowISO(), updated_at: nowISO() }), n++;
+      a.ocorrencias.push({ id: _(), org_id: i.id, agendamento_id: o.id, previsto_em: l, status: "pendente", created_at: m(), updated_at: m() }), t++;
     }
-    return a.materializado_ate = ate, n;
+    return o.materializado_ate = s, t;
   }
-  function rodarAgenda() {
-    return amb.exclusivo(async () => {
-      let s = await load(), hoje = hojeNaOrg(), pendentes = s.agendamentos.filter((a) => a.ativo && a.materializado_ate !== somarDias(hoje, 14)), n = 0;
-      for (let a of pendentes)
-        n += materializar(s, a);
-      if (pendentes.length)
-        await save(s, n ? "agenda" : "agenda-silencioso");
+  function vo() {
+    return r.exclusivo(async () => {
+      let a = await y(), o = U(), e = a.agendamentos.filter((s) => s.ativo && s.materializado_ate !== ro(o, 14)), n = 0;
+      for (let s of e)
+        n += no(a, s);
+      if (e.length)
+        await v(a, n ? "agenda" : "agenda-silencioso");
       return n;
     });
   }
-  function cumprirOcorrencia(s, m, e, inspecaoId) {
+  function yo(a, o, e, n) {
     if (!e.ocorrencia_id)
       return null;
-    let o = s.ocorrencias.find((x) => x.id === e.ocorrencia_id), a = o && s.agendamentos.find((x) => x.id === o.agendamento_id);
-    if (!o || !a || !a.responsaveis.includes(m.id) || a.formulario_id !== e.formulario_id || a.avaliado_id !== e.avaliado_id)
+    let s = a.ocorrencias.find((l) => l.id === e.ocorrencia_id), t = s && a.agendamentos.find((l) => l.id === s.agendamento_id);
+    if (!s || !t || !t.responsaveis.includes(o.id) || t.formulario_id !== e.formulario_id || t.avaliado_id !== e.avaliado_id)
       return null;
-    if (o.status === "completa" && o.inspecao_id && o.inspecao_id === inspecaoId)
-      return o.id;
-    if (o.status !== "pendente")
+    if (s.status === "completa" && s.inspecao_id && s.inspecao_id === n)
+      return s.id;
+    if (s.status !== "pendente")
       return null;
-    return o.status = "completa", o.updated_at = nowISO(), o.id;
+    return s.status = "completa", s.updated_at = m(), s.id;
   }
-  function etapasDe(s, i) {
-    return s.versoes.find((v) => v.id === i.formulario_versao_id)?.definicao.config.aprovacao?.etapas ?? [];
+  function R(a, o) {
+    return a.versoes.find((e) => e.id === o.formulario_versao_id)?.definicao.config.aprovacao?.etapas ?? [];
   }
-  function aprovadoresDaEtapa(s, i) {
-    return i.status === "em_aprovacao" ? etapasDe(s, i)[(i.aprovacao_etapa ?? 1) - 1]?.aprovadores ?? [] : [];
+  function uo(a, o) {
+    return o.status === "em_aprovacao" ? R(a, o)[(o.aprovacao_etapa ?? 1) - 1]?.aprovadores ?? [] : [];
   }
-  function ehAprovador(s, m, i) {
-    return pode(m, "aprovar") && etapasDe(s, i).some((e) => e.aprovadores.includes(m.id));
+  function X(a, o, e) {
+    return Y(o, "aprovar") && R(a, e).some((n) => n.aprovadores.includes(o.id));
   }
-  function avisarAprovadores(s, inspecao_id) {
-    let i = s.inspecoes.find((x) => x.id === inspecao_id), av = s.avaliados.find((a) => a.id === i.avaliado_id)?.nome ?? "", form = s.formularios.find((f) => f.id === i.formulario_id)?.nome ?? "";
-    for (let mid of aprovadoresDaEtapa(s, i)) {
-      let m = s.membros.find((x) => x.id === mid);
-      if (!m?.ativo || mid === i.responsavel_id)
+  function Z(a, o) {
+    let e = a.inspecoes.find((t) => t.id === o), n = a.avaliados.find((t) => t.id === e.avaliado_id)?.nome ?? "", s = a.formularios.find((t) => t.id === e.formulario_id)?.nome ?? "";
+    for (let t of uo(a, e)) {
+      let l = a.membros.find((c) => c.id === t);
+      if (!l?.ativo || t === e.responsavel_id)
         continue;
-      filaEmail(s, {
-        idem_key: `aprovacao:${i.id}:${i.aprovacao_etapa}:${mid}`,
-        para: m.email,
-        assunto: `Aprovação pendente: ${form} — ${av}`,
-        texto: `A inspeção em ${av} (nota ${i.nota_pct === null ? "—" : String(i.nota_pct).replace(".", ",") + "%"}) espera a sua decisão na etapa ${i.aprovacao_etapa} de ${etapasDe(s, i).length}.`,
-        link: `${amb.urlApp()}#/web/inspecoes/${i.id}`
+      fo(a, {
+        idem_key: `aprovacao:${e.id}:${e.aprovacao_etapa}:${t}`,
+        para: l.email,
+        assunto: `Aprovação pendente: ${s} — ${n}`,
+        texto: `A inspeção em ${n} (nota ${e.nota_pct === null ? "—" : String(e.nota_pct).replace(".", ",") + "%"}) espera a sua decisão na etapa ${e.aprovacao_etapa} de ${R(a, e).length}.`,
+        link: `${r.urlApp()}#/web/inspecoes/${e.id}`
       });
     }
   }
-  function hojeNaOrg() {
-    return new Intl.DateTimeFormat("en-CA", { timeZone: ORG.fuso_horario }).format(/* @__PURE__ */ new Date);
+  function U() {
+    return new Intl.DateTimeFormat("en-CA", { timeZone: i.fuso_horario }).format(/* @__PURE__ */ new Date);
   }
-  function somarDias2(iso, dias) {
-    let d = /* @__PURE__ */ new Date(iso + "T12:00:00Z");
-    return d.setUTCDate(d.getUTCDate() + dias), d.toISOString().slice(0, 10);
+  function B(a, o) {
+    let e = /* @__PURE__ */ new Date(a + "T12:00:00Z");
+    return e.setUTCDate(e.getUTCDate() + o), e.toISOString().slice(0, 10);
   }
-  function situacao(p, hoje) {
-    return p.status === "aberto" && p.prazo < hoje ? "em_atraso" : p.status;
+  function to(a, o) {
+    return a.status === "aberto" && a.prazo < o ? "em_atraso" : a.status;
   }
-  function novoToken() {
-    let b = crypto.getRandomValues(new Uint8Array(24));
-    return Array.from(b, (x) => x.toString(16).padStart(2, "0")).join("");
+  function Eo() {
+    let a = crypto.getRandomValues(new Uint8Array(24));
+    return Array.from(a, (o) => o.toString(16).padStart(2, "0")).join("");
   }
-  async function sha256(t) {
-    let d = await crypto.subtle.digest("SHA-256", (/* @__PURE__ */ new TextEncoder()).encode(t));
-    return Array.from(new Uint8Array(d), (x) => x.toString(16).padStart(2, "0")).join("");
+  async function go(a) {
+    let o = await crypto.subtle.digest("SHA-256", (/* @__PURE__ */ new TextEncoder()).encode(a));
+    return Array.from(new Uint8Array(o), (e) => e.toString(16).padStart(2, "0")).join("");
   }
-  function linkPublico(token) {
-    return `${amb.urlApp()}#/p/${token}`;
+  function Do(a) {
+    return `${r.urlApp()}#/p/${a}`;
   }
-  function filaEmail(s, e) {
-    if (s.emails.some((x) => x.idem_key === e.idem_key))
+  function fo(a, o) {
+    if (a.emails.some((e) => e.idem_key === o.idem_key))
       return !1;
-    return s.emails.push({ ...e, id: uuid(), criado_em: nowISO(), status: e.para ? amb.enviaEmails ? "pendente" : "enviado" : "sem_destinatario" }), !0;
+    return a.emails.push({ ...o, id: _(), criado_em: m(), status: o.para ? r.enviaEmails ? "pendente" : "enviado" : "sem_destinatario" }), !0;
   }
-  function emailPlano(s, p, link, hash) {
-    let av = s.avaliados.find((a) => a.id === p.avaliado_id)?.nome ?? "", prazo = p.prazo.split("-").reverse().join("/");
+  function Zo(a, o, e, n) {
+    let s = a.avaliados.find((l) => l.id === o.avaliado_id)?.nome ?? "", t = o.prazo.split("-").reverse().join("/");
     return {
-      idem_key: `plano:${p.id}:${hash.slice(0, 16)}`,
-      para: p.responsavel_email ?? "",
-      assunto: `Plano de ação: ${p.modelo_snapshot.nome} — ${av}`,
-      texto: `A inspeção em ${av} encontrou ${p.questao_keys.length} ${p.questao_keys.length === 1 ? "não conformidade" : "não conformidades"} que precisam de correção até ${prazo}.
+      idem_key: `plano:${o.id}:${n.slice(0, 16)}`,
+      para: o.responsavel_email ?? "",
+      assunto: `Plano de ação: ${o.modelo_snapshot.nome} — ${s}`,
+      texto: `A inspeção em ${s} encontrou ${o.questao_keys.length} ${o.questao_keys.length === 1 ? "não conformidade" : "não conformidades"} que precisam de correção até ${t}.
 Abra o link para registrar o que foi feito. Não precisa de senha.`,
-      link
+      link: e
     };
   }
-  async function posFinalizacao(inspecao_id) {
-    let s0 = await load(), i = s0.inspecoes.find((x) => x.id === inspecao_id);
-    if (!i || i.status === "rascunho")
+  async function qe(a) {
+    let o = await y(), e = o.inspecoes.find((c) => c.id === a);
+    if (!e || e.status === "rascunho")
       return;
-    let v = s0.versoes.find((x) => x.id === i.formulario_versao_id), qByKey = new Map(v.definicao.topicos.flatMap((t) => t.questoes).map((q) => [q.key, q])), grupos = [];
-    for (let k of i.resultado.nao_conformidades) {
-      let mid = qByKey.get(k)?.plano_acao_modelo_id, modelo = mid ? s0.planosModelo.find((m) => m.id === mid) : void 0;
-      if (!modelo)
+    let n = o.versoes.find((c) => c.id === e.formulario_versao_id), s = new Map(n.definicao.topicos.flatMap((c) => c.questoes).map((c) => [c.key, c])), t = [];
+    for (let c of e.resultado.nao_conformidades) {
+      let g = s.get(c)?.plano_acao_modelo_id, A = g ? o.planosModelo.find((q) => q.id === g) : void 0;
+      if (!A)
         continue;
-      let g = modelo.agrupamento === "por_inspecao" ? grupos.find((x) => x.modelo.id === modelo.id) : void 0;
-      if (g)
-        g.keys.push(k);
+      let w = A.agrupamento === "por_inspecao" ? t.find((q) => q.modelo.id === A.id) : void 0;
+      if (w)
+        w.keys.push(c);
       else
-        grupos.push({ modelo, keys: [k] });
+        t.push({ modelo: A, keys: [c] });
     }
-    let tokens = await Promise.all(grupos.map(async () => {
-      let t = novoToken();
-      return { t, h: await sha256(t) };
+    let l = await Promise.all(t.map(async () => {
+      let c = Eo();
+      return { t: c, h: await go(c) };
     }));
-    await mutate("planos", (s) => {
-      let av = s.avaliados.find((a) => a.id === i.avaliado_id);
-      grupos.forEach((g, n) => {
-        let chave = [...g.keys].sort().join(",");
-        if (s.planos.some((p) => p.inspecao_id === i.id && p.modelo_id === g.modelo.id && [...p.questao_keys].sort().join(",") === chave))
+    await D("planos", (c) => {
+      let g = c.avaliados.find((P) => P.id === e.avaliado_id);
+      t.forEach((P, K) => {
+        let F = [...P.keys].sort().join(",");
+        if (c.planos.some((po) => po.inspecao_id === e.id && po.modelo_id === P.modelo.id && [...po.questao_keys].sort().join(",") === F))
           return;
-        let para = g.modelo.destinatario === "fixo" ? g.modelo.email_fixo ?? null : av?.email ?? null, p = {
-          id: uuid(),
-          org_id: ORG.id,
-          modelo_id: g.modelo.id,
-          modelo_snapshot: { nome: g.modelo.nome, definicao: clone(g.modelo.definicao), exige_aprovacao: !!g.modelo.exige_aprovacao },
-          inspecao_id: i.id,
-          avaliado_id: i.avaliado_id,
-          formulario_id: i.formulario_id,
-          questao_keys: g.keys,
-          responsavel_email: para,
-          token_hash: tokens[n].h,
-          prazo: somarDias2(hojeNaOrg(), g.modelo.prazo_dias),
+        let ho = P.modelo.destinatario === "fixo" ? P.modelo.email_fixo ?? null : g?.email ?? null, mo = {
+          id: _(),
+          org_id: i.id,
+          modelo_id: P.modelo.id,
+          modelo_snapshot: { nome: P.modelo.nome, definicao: h(P.modelo.definicao), exige_aprovacao: !!P.modelo.exige_aprovacao },
+          inspecao_id: e.id,
+          avaliado_id: e.avaliado_id,
+          formulario_id: e.formulario_id,
+          questao_keys: P.keys,
+          responsavel_email: ho,
+          token_hash: l[K].h,
+          prazo: B(U(), P.modelo.prazo_dias),
           status: "aberto",
           respostas: {},
           anexos: [],
           finalizado_em: null,
-          ultimo_email_em: para ? nowISO() : null,
-          created_at: nowISO(),
-          updated_at: nowISO()
+          ultimo_email_em: ho ? m() : null,
+          created_at: m(),
+          updated_at: m()
         };
-        s.planos.push(p), filaEmail(s, emailPlano(s, p, linkPublico(tokens[n].t), tokens[n].h));
+        c.planos.push(mo), fo(c, Zo(c, mo, Do(l[K].t), l[K].h));
       });
-      let cfg = v.definicao.config.relatorio?.emails, destinos = /* @__PURE__ */ new Set;
-      if (cfg?.avaliado && av?.email)
-        destinos.add(av.email);
-      for (let e of cfg?.extras ?? [])
-        if (e.trim())
-          destinos.add(e.trim());
-      let form = s.formularios.find((f) => f.id === i.formulario_id)?.nome ?? "", novos = [];
-      for (let para of destinos)
-        if (filaEmail(s, {
-          idem_key: `relatorio:${i.id}:${para}`,
-          para,
-          assunto: `Relatório: ${form} — ${av?.nome ?? ""} — ${i.nota_pct === null ? "sem nota" : String(i.nota_pct).replace(".", ",") + "%"}`,
-          texto: `Segue o relatório da inspeção finalizada em ${new Date(i.finalizada_em ?? i.iniciada_em).toLocaleString("pt-BR", { timeZone: ORG.fuso_horario })}. ${i.qtd_nao_conformidades} não conformidade(s).`,
-          anexo: { tipo: "relatorio_pdf", inspecao_id: i.id }
+      let A = n.definicao.config.relatorio?.emails, w = /* @__PURE__ */ new Set;
+      if (A?.avaliado && g?.email)
+        w.add(g.email);
+      for (let P of A?.extras ?? [])
+        if (P.trim())
+          w.add(P.trim());
+      let q = c.formularios.find((P) => P.id === e.formulario_id)?.nome ?? "", O = [];
+      for (let P of w)
+        if (fo(c, {
+          idem_key: `relatorio:${e.id}:${P}`,
+          para: P,
+          assunto: `Relatório: ${q} — ${g?.nome ?? ""} — ${e.nota_pct === null ? "sem nota" : String(e.nota_pct).replace(".", ",") + "%"}`,
+          texto: `Segue o relatório da inspeção finalizada em ${new Date(e.finalizada_em ?? e.iniciada_em).toLocaleString("pt-BR", { timeZone: i.fuso_horario })}. ${e.qtd_nao_conformidades} não conformidade(s).`,
+          anexo: { tipo: "relatorio_pdf", inspecao_id: e.id }
         }))
-          novos.push(para);
-      if (novos.length)
-        log(s, i.id, null, "relatorio_enviado", { para: novos });
+          O.push(P);
+      if (O.length)
+        L(c, e.id, null, "relatorio_enviado", { para: O });
     });
   }
-  return server;
+  return ao;
 }
 
 // backend/repo.ts
-var COLECOES = [
+var Ue = [
   "formularios",
   "versoes",
   "avaliados",
@@ -2279,7 +2279,7 @@ var COLECOES = [
   "aprovacoes",
   "camposAvaliado"
 ];
-function estadoVazio() {
+function we() {
   return {
     v: 1,
     formularios: [],
@@ -2300,313 +2300,313 @@ function estadoVazio() {
     camposAvaliado: []
   };
 }
-function anexosNoBanco(sql) {
+function ye(r) {
   return {
-    async get(orgId, id) {
-      return (await sql`select data_url from anexos where org_id = ${orgId} and id = ${id}`)[0]?.data_url;
+    async get(i, d) {
+      return (await r`select data_url from anexos where org_id = ${i} and id = ${d}`)[0]?.data_url;
     },
-    async set(orgId, id, dataUrl) {
-      let bytes = Math.round((dataUrl.length - dataUrl.indexOf(",") - 1) * 3 / 4);
-      await sql`insert into anexos (org_id, id, data_url, bytes) values (${orgId}, ${id}, ${dataUrl}, ${bytes})
+    async set(i, d, u) {
+      let b = Math.round((u.length - u.indexOf(",") - 1) * 3 / 4);
+      await r`insert into anexos (org_id, id, data_url, bytes) values (${i}, ${d}, ${u}, ${b})
         on conflict (org_id, id) do nothing`;
     },
-    async presentes(orgId, ids) {
-      if (!ids.length)
+    async presentes(i, d) {
+      if (!d.length)
         return /* @__PURE__ */ new Set;
-      let r = await sql`select id from anexos where org_id = ${orgId} and id = any(string_to_array(${ids.join(",")}, ','))`;
-      return new Set(r.map((x) => x.id));
+      let u = await r`select id from anexos where org_id = ${i} and id = any(string_to_array(${d.join(",")}, ','))`;
+      return new Set(u.map((b) => b.id));
     }
   };
 }
-function ambientePg(sql, org, op) {
-  let tx = null, foto = /* @__PURE__ */ new Map, seqLido = 0, q = () => tx ?? sql, memoria = /* @__PURE__ */ new Map, avisos = /* @__PURE__ */ new Set;
+function Be(r, i, d) {
+  let u = null, b = /* @__PURE__ */ new Map, _ = 0, m = () => u ?? r, h = /* @__PURE__ */ new Map, y = /* @__PURE__ */ new Set;
   return {
-    org,
-    avisos,
-    enviaEmails: op.enviaEmails,
+    org: i,
+    avisos: y,
+    enviaEmails: d.enviaEmails,
     async carregar() {
-      let [linhas, orgs] = await Promise.all([
-        q()`select colecao, id, dados from registros where org_id = ${org.id} order by seq`,
-        q()`select contadores from orgs where id = ${org.id}`
-      ]), s = estadoVazio();
-      foto = /* @__PURE__ */ new Map;
-      for (let l of linhas) {
-        let dados = typeof l.dados === "string" ? JSON.parse(l.dados) : l.dados;
-        s[l.colecao].push(dados), foto.set(`${l.colecao}:${l.id}`, JSON.stringify(dados));
+      let [v, f] = await Promise.all([
+        m()`select colecao, id, dados from registros where org_id = ${i.id} order by seq`,
+        m()`select contadores from orgs where id = ${i.id}`
+      ]), p = we();
+      b = /* @__PURE__ */ new Map;
+      for (let k of v) {
+        let I = typeof k.dados === "string" ? JSON.parse(k.dados) : k.dados;
+        p[k.colecao].push(I), b.set(`${k.colecao}:${k.id}`, JSON.stringify(I));
       }
-      let c = orgs[0]?.contadores;
-      return s.eventoSeq = seqLido = Number((typeof c === "string" ? JSON.parse(c) : c)?.eventoSeq ?? 0), s;
+      let x = f[0]?.contadores;
+      return p.eventoSeq = _ = Number((typeof x === "string" ? JSON.parse(x) : x)?.eventoSeq ?? 0), p;
     },
-    async gravar(s) {
-      let vistos = /* @__PURE__ */ new Set;
-      for (let col of COLECOES)
-        for (let item of s[col]) {
-          let k = `${col}:${item.id}`;
-          vistos.add(k);
-          let json = JSON.stringify(item);
-          if (foto.get(k) === json)
+    async gravar(v) {
+      let f = /* @__PURE__ */ new Set;
+      for (let p of Ue)
+        for (let x of v[p]) {
+          let k = `${p}:${x.id}`;
+          f.add(k);
+          let I = JSON.stringify(x);
+          if (b.get(k) === I)
             continue;
-          await q()`insert into registros (org_id, colecao, id, dados) values (${org.id}, ${col}, ${String(item.id)}, ${json}::text::jsonb)
-            on conflict (org_id, colecao, id) do update set dados = excluded.dados, atualizado = now()`, foto.set(k, json);
+          await m()`insert into registros (org_id, colecao, id, dados) values (${i.id}, ${p}, ${String(x.id)}, ${I}::text::jsonb)
+            on conflict (org_id, colecao, id) do update set dados = excluded.dados, atualizado = now()`, b.set(k, I);
         }
-      for (let k of [...foto.keys()]) {
-        if (vistos.has(k))
+      for (let p of [...b.keys()]) {
+        if (f.has(p))
           continue;
-        let i = k.indexOf(":");
-        await q()`delete from registros where org_id = ${org.id} and colecao = ${k.slice(0, i)} and id = ${k.slice(i + 1)}`, foto.delete(k);
+        let x = p.indexOf(":");
+        await m()`delete from registros where org_id = ${i.id} and colecao = ${p.slice(0, x)} and id = ${p.slice(x + 1)}`, b.delete(p);
       }
-      if (s.eventoSeq !== seqLido)
-        await q()`update orgs set contadores = jsonb_set(contadores, '{eventoSeq}', ${String(s.eventoSeq)}::text::jsonb) where id = ${org.id}`, seqLido = s.eventoSeq;
+      if (v.eventoSeq !== _)
+        await m()`update orgs set contadores = jsonb_set(contadores, '{eventoSeq}', ${String(v.eventoSeq)}::text::jsonb) where id = ${i.id}`, _ = v.eventoSeq;
     },
-    async exclusivo(fn) {
-      if (tx)
-        return fn();
-      return sql.begin(async (t) => {
-        await t`select pg_advisory_xact_lock(hashtext(${org.id}))`, tx = t;
+    async exclusivo(v) {
+      if (u)
+        return v();
+      return r.begin(async (f) => {
+        await f`select pg_advisory_xact_lock(hashtext(${i.id}))`, u = f;
         try {
-          return await fn();
+          return await v();
         } finally {
-          tx = null;
+          u = null;
         }
       });
     },
-    estadoInicial: estadoVazio,
-    anexo: (id) => op.anexos.get(org.id, id),
-    guardarAnexo: (id, d) => op.anexos.set(org.id, id, d),
-    anexosPresentes: (ids) => op.anexos.presentes(org.id, ids),
-    urlApp: () => op.urlApp,
+    estadoInicial: we,
+    anexo: (v) => d.anexos.get(i.id, v),
+    guardarAnexo: (v, f) => d.anexos.set(i.id, v, f),
+    anexosPresentes: (v) => d.anexos.presentes(i.id, v),
+    urlApp: () => d.urlApp,
     atraso: async () => {
       return;
     },
-    aviso: (t) => {
-      avisos.add(t);
+    aviso: (v) => {
+      y.add(v);
     },
     exigirRede: () => {
       return;
     },
-    local: { get: (k) => memoria.get(k) ?? null, set: (k, v) => {
-      memoria.set(k, v);
-    }, del: (k) => {
-      memoria.delete(k);
+    local: { get: (v) => h.get(v) ?? null, set: (v, f) => {
+      h.set(v, f);
+    }, del: (v) => {
+      h.delete(v);
     }, limpar: async () => {
-      memoria.clear();
+      h.clear();
     } }
   };
 }
-function servidorDaOrg(sql, org, op) {
-  let amb = ambientePg(sql, org, op);
-  return { servidor: criarServidor(amb), avisos: amb.avisos };
+function Qo(r, i, d) {
+  let u = Be(r, i, d);
+  return { servidor: be(u), avisos: u.avisos };
 }
 
 // backend/api.ts
-var M = (acao, extra = {}) => ({ acao, ...extra }), METODOS = {
-  listarFormularios: M("membro"),
-  obterFormulario: M("membro"),
-  obterVersao: M("membro"),
-  criarFormulario: M("gerenciar_formularios"),
-  salvarRascunho: M("gerenciar_formularios"),
-  publicar: M("gerenciar_formularios", { quemId: 1 }),
-  salvarLogo: M("gerenciar_formularios"),
-  layoutRelatorio: M("membro"),
-  listarAvaliados: M("membro"),
-  listarCamposAvaliado: M("membro"),
-  criarAvaliado: M("gerenciar_avaliados"),
-  salvarAvaliado: M("gerenciar_avaliados"),
-  importarAvaliados: M("gerenciar_avaliados"),
-  salvarCamposAvaliado: M("gerenciar_avaliados", { quem: 0 }),
-  listarInspecoes: M("membro", { quem: 0 }),
-  obterInspecao: M("membro", { quem: 0 }),
-  eventos: M("membro", { ver: { tipo: "inspecao", arg: 0 } }),
-  aprovacaoDaInspecao: M("membro", { ver: { tipo: "inspecao", arg: 0 } }),
-  planosDaInspecao: M("membro", { ver: { tipo: "inspecao", arg: 0 } }),
-  registrarRelatorio: M("membro", { quemId: 1, ver: { tipo: "inspecao", arg: 0 } }),
-  anexo: M("membro", { ver: { tipo: "anexo", arg: 0 } }),
-  pacote: M("aplicar", { quemId: 0 }),
-  enviarAnexo: M("aplicar", { quemId: 0 }),
-  enviarInspecoes: M("aplicar", { quemId: 0 }),
-  listarPlanosModelo: M("membro"),
-  obterPlanoModelo: M("membro"),
-  criarPlanoModelo: M("gerenciar_planos"),
-  salvarPlanoModelo: M("gerenciar_planos"),
-  listarPlanos: M("membro", { quem: 0 }),
-  novoLinkPlano: M("gerenciar_planos", { quem: 1 }),
-  decidirPlano: M("gerenciar_planos", { quem: 0 }),
-  caixaDeSaida: M("gerenciar_planos"),
-  aprovacoesPendentes: M("membro", { quem: 0 }),
-  decisoesDe: M("membro", { quem: 0 }),
-  decidir: M("aprovar", { quem: 0 }),
-  gerarDadosDemo: M("dono", { quem: 0 }),
-  painel: M("ver_painel", { quem: 0 }),
-  rodarAgenda: M("membro"),
-  listarOcorrencias: M("membro", { quem: 0 }),
-  obterAgendamento: M("membro"),
-  salvarAgendamento: M("gerenciar_agendamentos", { quem: 0 }),
-  inativarOcorrencia: M("membro", { quem: 0 }),
-  listarPessoas: M("membro"),
-  listarFuncoes: M("membro"),
-  listarEquipes: M("membro"),
-  convidarPessoa: M("gerenciar_permissoes", { quem: 0 }),
-  salvarPessoa: M("gerenciar_permissoes", { quem: 0 }),
-  criarFuncao: M("gerenciar_permissoes", { quem: 0 }),
-  salvarFuncao: M("gerenciar_permissoes", { quem: 0 }),
-  excluirFuncao: M("gerenciar_permissoes", { quem: 0 }),
-  criarEquipe: M("gerenciar_permissoes", { quem: 0 }),
-  salvarEquipe: M("gerenciar_permissoes", { quem: 0 }),
-  excluirEquipe: M("gerenciar_permissoes", { quem: 0 })
-}, PUBLICOS = /* @__PURE__ */ new Set(["planoPorToken", "responderPlano"]);
+var E = (r, i = {}) => ({ acao: r, ...i }), Qe = {
+  listarFormularios: E("membro"),
+  obterFormulario: E("membro"),
+  obterVersao: E("membro"),
+  criarFormulario: E("gerenciar_formularios"),
+  salvarRascunho: E("gerenciar_formularios"),
+  publicar: E("gerenciar_formularios", { quemId: 1 }),
+  salvarLogo: E("gerenciar_formularios"),
+  layoutRelatorio: E("membro"),
+  listarAvaliados: E("membro"),
+  listarCamposAvaliado: E("membro"),
+  criarAvaliado: E("gerenciar_avaliados"),
+  salvarAvaliado: E("gerenciar_avaliados"),
+  importarAvaliados: E("gerenciar_avaliados"),
+  salvarCamposAvaliado: E("gerenciar_avaliados", { quem: 0 }),
+  listarInspecoes: E("membro", { quem: 0 }),
+  obterInspecao: E("membro", { quem: 0 }),
+  eventos: E("membro", { ver: { tipo: "inspecao", arg: 0 } }),
+  aprovacaoDaInspecao: E("membro", { ver: { tipo: "inspecao", arg: 0 } }),
+  planosDaInspecao: E("membro", { ver: { tipo: "inspecao", arg: 0 } }),
+  registrarRelatorio: E("membro", { quemId: 1, ver: { tipo: "inspecao", arg: 0 } }),
+  anexo: E("membro", { ver: { tipo: "anexo", arg: 0 } }),
+  pacote: E("aplicar", { quemId: 0 }),
+  enviarAnexo: E("aplicar", { quemId: 0 }),
+  enviarInspecoes: E("aplicar", { quemId: 0 }),
+  listarPlanosModelo: E("membro"),
+  obterPlanoModelo: E("membro"),
+  criarPlanoModelo: E("gerenciar_planos"),
+  salvarPlanoModelo: E("gerenciar_planos"),
+  listarPlanos: E("membro", { quem: 0 }),
+  novoLinkPlano: E("gerenciar_planos", { quem: 1 }),
+  decidirPlano: E("gerenciar_planos", { quem: 0 }),
+  caixaDeSaida: E("gerenciar_planos"),
+  aprovacoesPendentes: E("membro", { quem: 0 }),
+  decisoesDe: E("membro", { quem: 0 }),
+  decidir: E("aprovar", { quem: 0 }),
+  gerarDadosDemo: E("dono", { quem: 0 }),
+  painel: E("ver_painel", { quem: 0 }),
+  rodarAgenda: E("membro"),
+  listarOcorrencias: E("membro", { quem: 0 }),
+  obterAgendamento: E("membro"),
+  salvarAgendamento: E("gerenciar_agendamentos", { quem: 0 }),
+  inativarOcorrencia: E("membro", { quem: 0 }),
+  listarPessoas: E("membro"),
+  listarFuncoes: E("membro"),
+  listarEquipes: E("membro"),
+  convidarPessoa: E("gerenciar_permissoes", { quem: 0 }),
+  salvarPessoa: E("gerenciar_permissoes", { quem: 0 }),
+  criarFuncao: E("gerenciar_permissoes", { quem: 0 }),
+  salvarFuncao: E("gerenciar_permissoes", { quem: 0 }),
+  excluirFuncao: E("gerenciar_permissoes", { quem: 0 }),
+  criarEquipe: E("gerenciar_permissoes", { quem: 0 }),
+  salvarEquipe: E("gerenciar_permissoes", { quem: 0 }),
+  excluirEquipe: E("gerenciar_permissoes", { quem: 0 })
+}, Je = /* @__PURE__ */ new Set(["planoPorToken", "responderPlano"]);
 
-class ErroHttp extends Error {
+class G extends Error {
   status;
-  constructor(status, msg) {
-    super(msg);
-    this.status = status;
+  constructor(r, i) {
+    super(i);
+    this.status = r;
   }
 }
-async function sha256(t) {
-  let d = await crypto.subtle.digest("SHA-256", (/* @__PURE__ */ new TextEncoder()).encode(t));
-  return Array.from(new Uint8Array(d), (x) => x.toString(16).padStart(2, "0")).join("");
+async function Ke(r) {
+  let i = await crypto.subtle.digest("SHA-256", (/* @__PURE__ */ new TextEncoder()).encode(r));
+  return Array.from(new Uint8Array(i), (d) => d.toString(16).padStart(2, "0")).join("");
 }
-function criarApi(cfg) {
-  let cacheUsuario = /* @__PURE__ */ new Map, agora = cfg.agora ?? Date.now;
-  async function usuarioDoToken(jwt) {
-    let c = cacheUsuario.get(jwt);
-    if (c && c.ate > agora())
-      return c.email;
-    let r = await fetch(`${cfg.authUrl}/user`, { headers: { Authorization: `Bearer ${jwt}`, apikey: cfg.anonKey } });
-    if (!r.ok)
-      throw new ErroHttp(401, "Sua sessão expirou. Entre de novo.");
-    let u = await r.json();
-    if (!u.email)
-      throw new ErroHttp(401, "Sessão sem e-mail.");
-    if (cacheUsuario.size > 500)
-      cacheUsuario.clear();
-    return cacheUsuario.set(jwt, { email: u.email.toLowerCase(), ate: agora() + 60000 }), u.email.toLowerCase();
+function xe(r) {
+  let i = /* @__PURE__ */ new Map, d = r.agora ?? Date.now;
+  async function u(v) {
+    let f = i.get(v);
+    if (f && f.ate > d())
+      return f.email;
+    let p = await fetch(`${r.authUrl}/user`, { headers: { Authorization: `Bearer ${v}`, apikey: r.anonKey } });
+    if (!p.ok)
+      throw new G(401, "Sua sessão expirou. Entre de novo.");
+    let x = await p.json();
+    if (!x.email)
+      throw new G(401, "Sessão sem e-mail.");
+    if (i.size > 500)
+      i.clear();
+    return i.set(v, { email: x.email.toLowerCase(), ate: d() + 60000 }), x.email.toLowerCase();
   }
-  async function orgDoEmail(email) {
-    let r = await cfg.sql`
+  async function b(v) {
+    let f = await r.sql`
       select o.id, o.nome, o.fuso_horario from registros r join orgs o on o.id = r.org_id
-      where r.colecao = 'membros' and lower(r.dados->>'email') = ${email}
+      where r.colecao = 'membros' and lower(r.dados->>'email') = ${v}
       order by coalesce((r.dados->>'ativo')::boolean, true) desc, o.criado_em limit 1`;
-    if (!r[0])
-      throw new ErroHttp(403, "Este e-mail não tem acesso a nenhuma conta do Inspeta. Peça um convite ao administrador.");
-    return { id: r[0].id, nome: r[0].nome, fuso_horario: r[0].fuso_horario };
+    if (!f[0])
+      throw new G(403, "Este e-mail não tem acesso a nenhuma conta do Inspeta. Peça um convite ao administrador.");
+    return { id: f[0].id, nome: f[0].nome, fuso_horario: f[0].fuso_horario };
   }
-  async function orgDoToken(token) {
-    let h = await sha256(String(token)), r = await cfg.sql`
+  async function _(v) {
+    let f = await Ke(String(v)), p = await r.sql`
       select o.id, o.nome, o.fuso_horario from registros r join orgs o on o.id = r.org_id
-      where r.colecao = 'planos' and r.dados->>'token_hash' = ${h} limit 1`;
-    if (!r[0])
-      throw new ErroHttp(404, "Este link não vale mais. Ele pode ter sido substituído por um mais novo; confira o último e-mail recebido.");
-    return { id: r[0].id, nome: r[0].nome, fuso_horario: r[0].fuso_horario };
+      where r.colecao = 'planos' and r.dados->>'token_hash' = ${f} limit 1`;
+    if (!p[0])
+      throw new G(404, "Este link não vale mais. Ele pode ter sido substituído por um mais novo; confira o último e-mail recebido.");
+    return { id: p[0].id, nome: p[0].nome, fuso_horario: p[0].fuso_horario };
   }
-  async function convidar(email) {
-    if (!cfg.serviceKey)
+  async function m(v) {
+    if (!r.serviceKey)
       return;
-    let r = await fetch(`${cfg.authUrl}/invite${cfg.urlApp ? `?redirect_to=${encodeURIComponent(cfg.urlApp)}` : ""}`, {
+    let f = await fetch(`${r.authUrl}/invite${r.urlApp ? `?redirect_to=${encodeURIComponent(r.urlApp)}` : ""}`, {
       method: "POST",
-      headers: { Authorization: `Bearer ${cfg.serviceKey}`, apikey: cfg.serviceKey, "Content-Type": "application/json" },
-      body: JSON.stringify({ email, data: {} })
+      headers: { Authorization: `Bearer ${r.serviceKey}`, apikey: r.serviceKey, "Content-Type": "application/json" },
+      body: JSON.stringify({ email: v, data: {} })
     });
-    if (!r.ok && r.status !== 422)
-      console.error("convite falhou", r.status);
+    if (!f.ok && f.status !== 422)
+      console.error("convite falhou", f.status);
   }
-  function cors(req) {
-    let o = req.headers.get("Origin") ?? "";
+  function h(v) {
+    let f = v.headers.get("Origin") ?? "";
     return {
-      "Access-Control-Allow-Origin": !cfg.origens?.length || cfg.origens.includes(o) ? o || "*" : "null",
+      "Access-Control-Allow-Origin": !r.origens?.length || r.origens.includes(f) ? f || "*" : "null",
       "Access-Control-Allow-Headers": "authorization, content-type, apikey, x-client-info",
       "Access-Control-Allow-Methods": "POST, OPTIONS",
       Vary: "Origin"
     };
   }
-  let json = (req, status, body) => new Response(JSON.stringify(body), { status, headers: { "Content-Type": "application/json; charset=utf-8", ...cors(req) } });
-  return async (req) => {
-    if (req.method === "OPTIONS")
-      return new Response(null, { status: 204, headers: cors(req) });
-    if (req.method !== "POST")
-      return json(req, 405, { ok: !1, erro: "Use POST." });
-    let corpo;
+  let y = (v, f, p) => new Response(JSON.stringify(p), { status: f, headers: { "Content-Type": "application/json; charset=utf-8", ...h(v) } });
+  return async (v) => {
+    if (v.method === "OPTIONS")
+      return new Response(null, { status: 204, headers: h(v) });
+    if (v.method !== "POST")
+      return y(v, 405, { ok: !1, erro: "Use POST." });
+    let f;
     try {
-      let txt = await req.text();
-      if (txt.length > 20971520)
-        throw new ErroHttp(413, "Envio grande demais (máx. 20 MB).");
-      corpo = JSON.parse(txt);
-    } catch (e) {
-      return json(req, e instanceof ErroHttp ? e.status : 400, { ok: !1, erro: e instanceof ErroHttp ? e.message : "Corpo inválido." });
+      let k = await v.text();
+      if (k.length > 20971520)
+        throw new G(413, "Envio grande demais (máx. 20 MB).");
+      f = JSON.parse(k);
+    } catch (k) {
+      return y(v, k instanceof G ? k.status : 400, { ok: !1, erro: k instanceof G ? k.message : "Corpo inválido." });
     }
-    let metodo = String(corpo.metodo ?? ""), args = Array.isArray(corpo.args) ? [...corpo.args] : [];
+    let p = String(f.metodo ?? ""), x = Array.isArray(f.args) ? [...f.args] : [];
     try {
-      if (PUBLICOS.has(metodo)) {
-        let org = await orgDoToken(String(args[0] ?? "")), { servidor, avisos } = servidorDaOrg(cfg.sql, org, { urlApp: cfg.urlApp, anexos: cfg.anexos, enviaEmails: cfg.enviaEmails }), fn = servidor[metodo], valor = await fn(...args);
-        return json(req, 200, { ok: !0, valor, avisos: [...avisos] });
+      if (Je.has(p)) {
+        let T = await _(String(x[0] ?? "")), { servidor: J, avisos: ao } = Qo(r.sql, T, { urlApp: r.urlApp, anexos: r.anexos, enviaEmails: r.enviaEmails }), io = J[p], co = await io(...x);
+        return y(v, 200, { ok: !0, valor: co, avisos: [...ao] });
       }
-      let auth = req.headers.get("Authorization") ?? "";
-      if (!auth.startsWith("Bearer "))
-        throw new ErroHttp(401, "Entre para continuar.");
-      let email = await usuarioDoToken(auth.slice(7)), org = await orgDoEmail(email), { servidor, avisos } = servidorDaOrg(cfg.sql, org, { urlApp: cfg.urlApp, anexos: cfg.anexos, enviaEmails: cfg.enviaEmails }), quem = await servidor._membroPorEmail(email);
-      if (!quem || !quem.ativo)
-        throw new ErroHttp(403, "Este acesso foi desativado. Fale com o administrador da conta.");
-      if (metodo === "eu")
-        return json(req, 200, { ok: !0, valor: { membro: quem, membros: await servidor._membrosResolvidos(), org } });
-      let regra = METODOS[metodo];
-      if (!regra)
-        throw new ErroHttp(404, `Operação desconhecida: ${metodo}`);
-      if (regra.acao === "dono" ? !quem.is_master : regra.acao !== "membro" && !pode(quem, regra.acao))
-        throw new ErroHttp(403, "Você não tem permissão para isso.");
-      if (regra.quem !== void 0)
-        args[regra.quem] = quem;
-      if (regra.quemId !== void 0)
-        args[regra.quemId] = quem.id;
-      if (regra.ver && !await servidor._podeVer(quem, regra.ver.tipo, String(args[regra.ver.arg] ?? "")))
-        throw new ErroHttp(404, regra.ver.tipo === "inspecao" ? "Inspeção não encontrada." : "Arquivo não encontrado.");
-      let valor = await servidor[metodo].apply(servidor, args);
-      if (metodo === "convidarPessoa" && valor && typeof valor === "object" && "email" in valor)
-        await convidar(String(valor.email));
-      if (avisos.size && metodo !== "rodarAgenda")
-        await cfg.sql`insert into auditoria (org_id, membro_id, metodo) values (${org.id}, ${quem.id}, ${metodo})`;
-      let extra = avisos.has("membros") ? { membros: await servidor._membrosResolvidos() } : {};
-      return json(req, 200, { ok: !0, valor: valor ?? null, avisos: [...avisos], ...extra });
-    } catch (e) {
-      if (e instanceof ErroHttp)
-        return json(req, e.status, { ok: !1, erro: e.message });
-      let msg = e instanceof Error ? e.message : String(e), interno = !(e instanceof Error && e.constructor === Error);
-      if (interno)
-        console.error(metodo, e);
-      return json(req, interno ? 500 : 400, { ok: !1, erro: interno ? "Erro no servidor. Tente de novo em instantes." : msg });
+      let k = v.headers.get("Authorization") ?? "";
+      if (!k.startsWith("Bearer "))
+        throw new G(401, "Entre para continuar.");
+      let I = await u(k.slice(7)), D = await b(I), { servidor: L, avisos: H } = Qo(r.sql, D, { urlApp: r.urlApp, anexos: r.anexos, enviaEmails: r.enviaEmails }), Q = await L._membroPorEmail(I);
+      if (!Q || !Q.ativo)
+        throw new G(403, "Este acesso foi desativado. Fale com o administrador da conta.");
+      if (p === "eu")
+        return y(v, 200, { ok: !0, valor: { membro: Q, membros: await L._membrosResolvidos(), org: D } });
+      let z = Qe[p];
+      if (!z)
+        throw new G(404, `Operação desconhecida: ${p}`);
+      if (z.acao === "dono" ? !Q.is_master : z.acao !== "membro" && !Y(Q, z.acao))
+        throw new G(403, "Você não tem permissão para isso.");
+      if (z.quem !== void 0)
+        x[z.quem] = Q;
+      if (z.quemId !== void 0)
+        x[z.quemId] = Q.id;
+      if (z.ver && !await L._podeVer(Q, z.ver.tipo, String(x[z.ver.arg] ?? "")))
+        throw new G(404, z.ver.tipo === "inspecao" ? "Inspeção não encontrada." : "Arquivo não encontrado.");
+      let W = await L[p].apply(L, x);
+      if (p === "convidarPessoa" && W && typeof W === "object" && "email" in W)
+        await m(String(W.email));
+      if (H.size && p !== "rodarAgenda")
+        await r.sql`insert into auditoria (org_id, membro_id, metodo) values (${D.id}, ${Q.id}, ${p})`;
+      let N = H.has("membros") ? { membros: await L._membrosResolvidos() } : {};
+      return y(v, 200, { ok: !0, valor: W ?? null, avisos: [...H], ...N });
+    } catch (k) {
+      if (k instanceof G)
+        return y(v, k.status, { ok: !1, erro: k.message });
+      let I = k instanceof Error ? k.message : String(k), D = !(k instanceof Error && k.constructor === Error);
+      if (D)
+        console.error(p, k);
+      return y(v, D ? 500 : 400, { ok: !1, erro: D ? "Erro no servidor. Tente de novo em instantes." : I });
     }
   };
 }
 
 // backend/configInterna.ts
-function leitorConfig(sql, ttlMs = 60000) {
-  let cache = null;
+function Se(r, i = 60000) {
+  let d = null;
   return async () => {
-    if (cache && Date.now() - cache.em < ttlMs)
-      return cache.v;
-    let rows = await sql`select nome, valor from interno.config`, m = new Map(rows.map((r) => [r.nome, r.valor])), v = {
-      app_url: m.get("app_url") ?? "",
-      origens: (m.get("origens") ?? "").split(",").map((x) => x.trim()).filter(Boolean),
-      cron_secret: m.get("cron_secret") ?? "",
-      url_jobs: m.get("url_jobs") ?? ""
+    if (d && Date.now() - d.em < i)
+      return d.v;
+    let u = await r`select nome, valor from interno.config`, b = new Map(u.map((m) => [m.nome, m.valor])), _ = {
+      app_url: b.get("app_url") ?? "",
+      origens: (b.get("origens") ?? "").split(",").map((m) => m.trim()).filter(Boolean),
+      cron_secret: b.get("cron_secret") ?? "",
+      url_jobs: b.get("url_jobs") ?? ""
     };
-    return cache = { em: Date.now(), v }, v;
+    return d = { em: Date.now(), v: _ }, _;
   };
 }
 
 // backend/funcao-api.ts
-var env = (k) => Deno.env.get(k) ?? "", sql = postgres(env("SUPABASE_DB_URL"), { prepare: !1, max: 3, idle_timeout: 20 }), config = leitorConfig(sql), anexos = anexosNoBanco(sql), atual = null;
-Deno.serve(async (req) => {
-  let c = await config(), chave = c.app_url + "|" + c.origens.join(",");
-  if (atual?.chave !== chave)
-    atual = { chave, h: criarApi({
-      sql,
-      authUrl: `${env("SUPABASE_URL")}/auth/v1`,
-      anonKey: env("SUPABASE_ANON_KEY"),
-      serviceKey: env("SUPABASE_SERVICE_ROLE_KEY"),
-      urlApp: c.app_url,
-      origens: c.origens,
-      anexos,
-      enviaEmails: !!env("RESEND_API_KEY")
+var wo = (r) => Deno.env.get(r) ?? "", Ko = Ze(wo("SUPABASE_DB_URL"), { prepare: !1, max: 3, idle_timeout: 20 }), Ye = Se(Ko), Ge = ye(Ko), Jo = null;
+Deno.serve(async (r) => {
+  let i = await Ye(), d = i.app_url + "|" + i.origens.join(",");
+  if (Jo?.chave !== d)
+    Jo = { chave: d, h: xe({
+      sql: Ko,
+      authUrl: `${wo("SUPABASE_URL")}/auth/v1`,
+      anonKey: wo("SUPABASE_ANON_KEY"),
+      serviceKey: wo("SUPABASE_SERVICE_ROLE_KEY"),
+      urlApp: i.app_url,
+      origens: i.origens,
+      anexos: Ge,
+      enviaEmails: !!wo("RESEND_API_KEY")
     }) };
-  return atual.h(req);
+  return Jo.h(r);
 });
