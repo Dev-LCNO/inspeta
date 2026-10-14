@@ -4,7 +4,7 @@ import {
   evaluateFormula, formulaReferences, index as indexDef, validateDefinition,
   type DefinitionIssue, type FormDefinition, type Option, type Question, type QuestionType, type Topic,
 } from "@app/form-engine";
-import { server } from "../data/server";
+import { pode, server } from "../data/server";
 import type { Avaliado, Formulario, Membro } from "../data/types";
 import { corClassificacao, fmt, parseNumero } from "../ui/format";
 import { useData } from "../ui/hooks";
@@ -533,6 +533,8 @@ function AbaConfig({ def, edit }: { def: FormDefinition; edit: (fn: (d: FormDefi
         <div><Button variant="ghost" size="sm" icon="plus" onClick={() => edit((d) => { (d.config.classificacoes ??= []).push({ nome: "Nova faixa", cor: "rank-mid", min: 0, max: 0 }); })}>Adicionar faixa</Button></div>
       </section>
 
+      <SecaoAprovacao def={def} edit={edit} />
+
       <section className="card">
         <h2 style={{ fontSize: "var(--text-lg)" }}>Aplicação</h2>
         <div className="toggle-row">
@@ -547,6 +549,39 @@ function AbaConfig({ def, edit }: { def: FormDefinition; edit: (fn: (d: FormDefi
         </div>
       </section>
     </div>
+  );
+}
+
+function SecaoAprovacao({ def, edit }: { def: FormDefinition; edit: (fn: (d: FormDefinition) => void) => void }) {
+  const etapas = def.config.aprovacao?.etapas ?? [];
+  const pessoas = server.membros().filter((m) => m.ativo && pode(m, "aprovar"));
+  const setEtapas = (fn: (e: { aprovadores: string[] }[]) => void) => edit((d) => {
+    const es = d.config.aprovacao?.etapas ?? [];
+    fn(es);
+    if (es.length) d.config.aprovacao = { etapas: es }; else delete d.config.aprovacao;
+  });
+  return (
+    <section className="card stack-sm" aria-labelledby="h-aprov">
+      <h2 id="h-aprov" style={{ fontSize: "var(--text-lg)" }}>Aprovação</h2>
+      <Switch label="Exigir aprovação depois de finalizar" desc="A inspeção fica “em aprovação” até passar por todas as etapas. Em cada etapa, qualquer um dos escolhidos decide."
+        checked={etapas.length > 0} onChange={(v) => setEtapas((es) => { es.splice(0); if (v) es.push({ aprovadores: [] }); })} />
+      {etapas.map((e, k) => (
+        <fieldset key={k} className="group card flat" style={{ padding: "var(--space-3) var(--space-4)" }}>
+          <legend>Etapa {k + 1}</legend>
+          <div className="checklist">{pessoas.map((m) => (
+            <label key={m.id} className="check">
+              <input type="checkbox" checked={e.aprovadores.includes(m.id)}
+                onChange={(ev: { target: { checked: boolean } }) => setEtapas((es) => { const a = es[k]!.aprovadores; es[k]!.aprovadores = ev.target.checked ? [...a, m.id] : a.filter((x) => x !== m.id); })} />
+              <span>{m.nome}<small>{m.funcao}</small></span>
+            </label>
+          ))}</div>
+          {!e.aprovadores.length ? <p className="muted" style={{ margin: 0, fontSize: "var(--text-xs)" }}>Escolha pelo menos uma pessoa. Só aparece quem tem a ação “Aprovar inspeções”.</p> : null}
+          {etapas.length > 1 ? <Button variant="ghost" size="sm" icon="x" onClick={() => setEtapas((es) => { es.splice(k, 1); })}>Remover etapa {k + 1}</Button> : null}
+        </fieldset>
+      ))}
+      {etapas.length && etapas.length < 5 ? <div><Button variant="ghost" size="sm" icon="plus" onClick={() => setEtapas((es) => { es.push({ aprovadores: [] }); })}>Adicionar etapa</Button></div> : null}
+      {etapas.length ? <p className="muted" style={{ margin: 0, fontSize: "var(--text-xs)" }}>Vale para as inspeções feitas a partir da próxima versão publicada.</p> : null}
+    </section>
   );
 }
 

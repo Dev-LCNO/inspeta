@@ -247,3 +247,10 @@ test("formulário sem cálculo de nota não gera nota", () => {
   assert.equal(r.nota_pct, null);
   assert.deepEqual(r.nao_conformidades, ["q1"]); // NC continua valendo
 });
+
+test("validação: etapa de aprovação sem aprovador", () => {
+  const def = { config: { aprovacao: { etapas: [{ aprovadores: ["m1"] }, { aprovadores: [] }] } }, topicos: [{ key: "t", titulo: "T", questoes: [{ key: "q", titulo: "Q", tipo: "texto" as const }] }] };
+  const issues = validateDefinition(def);
+  assert.equal(issues.length, 1);
+  assert.match(issues[0]!.onde, /etapa 2/);
+});

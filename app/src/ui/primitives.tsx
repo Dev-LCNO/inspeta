@@ -111,10 +111,11 @@ export function ScoreHero({ pct, classificacao, faixas, anterior }: {
         <div className="row">
           {classificacao ? <span className="badge" style={{ background: "var(--c-surface)", color: "var(--c-text)" }}><span className="dot" style={{ background: corClassificacao(classificacao.cor) }} />{classificacao.nome}</span> : null}
           {delta !== null ? (
+            Math.abs(delta) < 0.05 ? <span className="muted">igual à anterior ({fmt.pct(anterior!)})</span> : (
             <span className="muted row" style={{ gap: 4 }}>
-              <span style={{ color: delta >= 0 ? "var(--c-success)" : "var(--c-danger)" }}><Icon n={delta >= 0 ? "arrowUp" : "arrowDown"} size="sm" /></span>
-              {delta >= 0 ? "+" : "−"}{fmt.num(Math.abs(delta))} pts vs. anterior ({fmt.pct(anterior!)})
-            </span>
+              <span style={{ color: delta > 0 ? "var(--c-success)" : "var(--c-danger)" }}><Icon n={delta > 0 ? "arrowUp" : "arrowDown"} size="sm" /></span>
+              {delta > 0 ? "+" : "−"}{fmt.num(Math.abs(delta))} p.p. vs. anterior ({fmt.pct(anterior!)})
+            </span>)
           ) : null}
         </div>
         {ordenadas.length ? (

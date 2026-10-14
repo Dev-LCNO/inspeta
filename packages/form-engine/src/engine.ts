@@ -401,6 +401,9 @@ export function validateDefinition(def: FormDefinition): DefinitionIssue[] {
       stack.push(...parentOf(cur));
     }
   }
+  (def.config.aprovacao?.etapas ?? []).forEach((e, k) => {
+    if (!e.aprovadores.length) issues.push({ onde: `aprovação, etapa ${k + 1}`, problema: "etapa sem aprovador" });
+  });
   return issues;
 
   function checkDep(dep: { questao: string; opcao: string } | undefined, onde: string) {

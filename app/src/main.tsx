@@ -18,6 +18,7 @@ import { Login } from "./web/Login";
 import { PlanoModeloEditor } from "./web/PlanoModeloEditor";
 import { PlanoPublico } from "./web/PlanoPublico";
 import { Painel } from "./web/Painel";
+import { Aprovacoes } from "./web/Aprovacoes";
 import { EquipeEditor, PessoaEditor, Permissoes } from "./web/Permissoes";
 import { Planos } from "./web/Planos";
 import { Shell } from "./web/Shell";
@@ -63,6 +64,7 @@ function App() {
   else if (sec === "permissoes" && p[2] === "pessoas" && p[3]) page = <Guard me={me} acao="gerenciar_permissoes"><PessoaEditor me={me} id={p[3]} /></Guard>;
   else if (sec === "permissoes" && p[2] === "equipes" && p[3]) page = <Guard me={me} acao="gerenciar_permissoes"><EquipeEditor me={me} id={p[3]} /></Guard>;
   else if (sec === "permissoes") page = <Guard me={me} acao="gerenciar_permissoes"><Permissoes me={me} /></Guard>;
+  else if (sec === "aprovacoes") page = <Guard me={me} acao="aprovar"><Aprovacoes me={me} /></Guard>;
   else if (sec === "painel") page = <Guard me={me} acao="ver_painel"><Painel me={me} /></Guard>;
   else if (sec === "funcoes") page = <Guard me={me} acao="gerenciar_permissoes"><Funcoes me={me} /></Guard>;
   else if (sec === "avaliados") page = <Guard me={me} acao="gerenciar_avaliados"><Avaliados /></Guard>;

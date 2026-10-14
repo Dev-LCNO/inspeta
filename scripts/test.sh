@@ -21,4 +21,5 @@ BASE="http://localhost:$PORT/" node tests/e2e-marco2.mjs
 BASE="http://localhost:$PORT/" node tests/e2e-marco3.mjs
 BASE="http://localhost:$PORT/" node tests/e2e-agenda.mjs
 BASE="http://localhost:$PORT/" node tests/e2e-painel.mjs
+BASE="http://localhost:$PORT/" node tests/e2e-aprovacao.mjs
 echo "== tudo verde"

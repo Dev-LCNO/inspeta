@@ -90,6 +90,8 @@ export interface FormConfig {
   preenchimento_sequencial?: boolean;
   reincidencia_meses?: number;
   relatorio?: { emails?: { avaliado?: boolean; extras?: string[] } };
+  /** Etapas em ordem; em cada uma, qualquer um dos aprovadores decide. */
+  aprovacao?: { etapas: { aprovadores: string[] }[] };
 }
 
 export interface FormDefinition {

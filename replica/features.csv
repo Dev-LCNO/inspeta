@@ -53,7 +53,7 @@ Link público para responder plano,planos,must,yes,yes,S26 | S26 sem login; banc
 Status aberto/finalizado/em atraso,planos,must,yes,yes,atraso derivado do prazo no fuso da org — testado
 Reenviar e-mail do plano,planos,should,yes,yes,gera link novo e invalida o anterior — testado
 Agrupar planos por inspeção ou por NC,planos,could,yes,yes,
-Aprovação de inspeção multi-etapa,aprovacao,should,yes,no,S32
+Aprovação de inspeção multi-etapa,aprovacao,should,yes,yes,S15 etapas por versão; S12 decide com motivo obrigatório ao reprovar; S32 fila e decididas; e-mail ao aprovador; ninguém aprova a própria
 Aprovação de plano de ação,aprovacao,could,yes,no,
 Agendamento de inspeções com recorrência,agenda,should,yes,yes,"S05/S06: única, diária, semanal (dias), mensal; vários horários ou dia inteiro; término nunca/data/vezes; fuso da org; 14 dias materializados sem duplicar"
 Notificação push no horário,agenda,should,yes,partial,aviso local pelo service worker com o app aberto; Web Push com o app fechado depende do backend (VAPID)

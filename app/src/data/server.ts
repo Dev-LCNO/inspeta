@@ -11,7 +11,7 @@ import {
   OfflineError,
   type Avaliado, type FiltroInspecoes, type Formulario, type FormularioVersao, type ID, type Inspecao,
   type InspecaoEnvio, type InspecaoEvento, type Membro, type Organizacao, type PacoteSync, type ResultadoEnvio,
-  type Acesso, type Agendamento, type Ocorrencia, type OcorrenciaPacote, type OcorrenciaSituacao, type RegraAgenda, type Equipe, type Funcao, type MembroRegistro,
+  type Acesso, type Aprovacao, type Agendamento, type Ocorrencia, type OcorrenciaPacote, type OcorrenciaSituacao, type RegraAgenda, type Equipe, type Funcao, type MembroRegistro,
   type EmailSaida, type LinhaImportacao, type PlanoAcao, type PlanoModelo, type PlanoSituacao, type ResultadoImportacao,
 } from "./types";
 import type { Answers } from "@app/form-engine";
@@ -32,6 +32,7 @@ interface State {
   equipes: Equipe[];
   agendamentos: Agendamento[];
   ocorrencias: Ocorrencia[];
+  aprovacoes: Aprovacao[];
 }
 
 const STATE_KEY = "srv:state";
@@ -56,6 +57,7 @@ async function load(): Promise<State> {
     s.equipes ??= clone(EQUIPES);
     s.agendamentos ??= agendamentosIniciais(hojeNaOrg());
     s.ocorrencias ??= [];
+    s.aprovacoes ??= [];
     if (localStorage.getItem(MEMBROS_KEY) === null) publicarMembros(s);
     return s;
   }
@@ -63,7 +65,7 @@ async function load(): Promise<State> {
     v: 1, formularios: clone(FORMULARIOS), versoes: clone(VERSOES), avaliados: clone(AVALIADOS),
     inspecoes: [], eventos: [], eventoSeq: 0, planosModelo: clone(PLANOS_MODELO), planos: [], emails: [],
     membros: clone(MEMBROS_REG), funcoes: clone(FUNCOES), equipes: clone(EQUIPES),
-    agendamentos: agendamentosIniciais(hojeNaOrg()), ocorrencias: [],
+    agendamentos: agendamentosIniciais(hojeNaOrg()), ocorrencias: [], aprovacoes: [],
   };
   for (const h of HISTORICO) {
     const m = membroEm(fresh, h.responsavel_id);
@@ -160,6 +162,10 @@ function processar(s: State, m: Membro, e: InspecaoEnvio, agora = nowISO()): Res
     qtd_nao_conformidades: ev.nao_conformidades.length, resultado, device_id: e.device_id, sincronizada_em: agora,
     ocorrencia_id: e.status === "completa" ? cumprirOcorrencia(s, m, e, existente?.id) : null,
   };
+  // aprovação: as etapas vêm da versão (congeladas); o aplicador nunca escolhe o status final
+  const etapas = versao.definicao.config.aprovacao?.etapas ?? [];
+  const status: Inspecao["status"] = e.status === "completa" && etapas.length ? "em_aprovacao" : e.status;
+  Object.assign(base, { status, aprovacao_etapa: status === "em_aprovacao" ? 1 : null });
   let id: ID;
   if (existente) {
     Object.assign(existente, base, { updated_at: agora });
@@ -173,6 +179,7 @@ function processar(s: State, m: Membro, e: InspecaoEnvio, agora = nowISO()): Res
   const oc = base.ocorrencia_id ? s.ocorrencias.find((o) => o.id === base.ocorrencia_id) : undefined;
   if (oc) oc.inspecao_id = id;
   if (e.status === "completa") log(s, id, m.id, "finalizada", { nota_pct: ev.nota_pct, ncs: ev.nao_conformidades.length }, e.finalizada_em ?? agora);
+  if (status === "em_aprovacao") { log(s, id, null, "enviada_aprovacao", { etapa: 1, de: etapas.length }, agora); avisarAprovadores(s, id); }
   return { client_uuid: e.client_uuid, ok: true, id, nota_pct: ev.nota_pct, classificacao: ev.classificacao?.nome ?? null };
 }
 
@@ -324,7 +331,7 @@ export const server = {
     const nomeF = new Map(s.formularios.map((f) => [f.id, f.nome]));
     const nomeM = new Map(membrosCache().map((m) => [m.id, m.nome]));
     return clone(s.inspecoes.filter((i) => {
-      if (!podeVerInspecao(quem, i)) return false; // = policy inspecoes_ler
+      if (!podeVerInspecao(quem, i) && !ehAprovador(s, quem, i)) return false; // = policy inspecoes_ler
       if (filtro.status && i.status !== filtro.status) return false;
       const d = (i.finalizada_em ?? i.iniciada_em).slice(0, 10);
       if (filtro.de && d < filtro.de) return false;
@@ -337,8 +344,9 @@ export const server = {
     }).sort((a, b) => (b.finalizada_em ?? b.iniciada_em).localeCompare(a.finalizada_em ?? a.iniciada_em)));
   },
   async obterInspecao(quem: Membro, id: ID): Promise<Inspecao> {
-    const i = (await load()).inspecoes.find((x) => x.id === id);
-    if (!i || !podeVerInspecao(quem, i)) throw new Error("Inspeção não encontrada.");
+    const s = await load();
+    const i = s.inspecoes.find((x) => x.id === id);
+    if (!i || (!podeVerInspecao(quem, i) && !ehAprovador(s, quem, i))) throw new Error("Inspeção não encontrada.");
     return clone(i);
   },
   async eventos(id: ID): Promise<InspecaoEvento[]> {
@@ -589,6 +597,60 @@ export const server = {
     };
     if (opts.simular) return aplicar(clone(await load()));
     return mutate("avaliados", aplicar);
+  },
+
+  // ---- aprovações (S32) ----
+  /** O que espera a decisão desta pessoa (etapa atual inclui ela entre os aprovadores). */
+  async aprovacoesPendentes(quem: Membro) {
+    await latency();
+    const s = await load();
+    return s.inspecoes.filter((i) => i.status === "em_aprovacao" && aprovadoresDaEtapa(s, i).includes(quem.id) && i.responsavel_id !== quem.id)
+      .map((i) => ({ ...clone(i), etapas: etapasDe(s, i).length,
+        avaliado: s.avaliados.find((a) => a.id === i.avaliado_id)?.nome ?? "", formulario: s.formularios.find((f) => f.id === i.formulario_id)?.nome ?? "",
+        responsavel: s.membros.find((m) => m.id === i.responsavel_id)?.nome ?? "" }))
+      .sort((a, b) => (a.finalizada_em ?? "").localeCompare(b.finalizada_em ?? ""));
+  },
+  async decisoesDe(quem: Membro) {
+    await latency();
+    const s = await load();
+    return s.aprovacoes.filter((a) => a.aprovador_id === quem.id).map((a) => {
+      const i = s.inspecoes.find((x) => x.id === a.inspecao_id);
+      return { ...clone(a), status: i?.status ?? "completa", avaliado: s.avaliados.find((x) => x.id === i?.avaliado_id)?.nome ?? "", formulario: s.formularios.find((f) => f.id === i?.formulario_id)?.nome ?? "", nota_pct: i?.nota_pct ?? null };
+    }).sort((a, b) => b.em.localeCompare(a.em));
+  },
+  /** Etapas, quem aprova cada uma e o que já foi decidido. */
+  async aprovacaoDaInspecao(id: ID) {
+    const s = await load();
+    const i = s.inspecoes.find((x) => x.id === id);
+    if (!i) throw new Error("Inspeção não encontrada.");
+    const nome = (mid: ID) => s.membros.find((m) => m.id === mid)?.nome ?? "—";
+    return etapasDe(s, i).map((e, k) => ({
+      etapa: k + 1, aprovadores: e.aprovadores.map((a) => ({ id: a, nome: nome(a) })),
+      decisao: s.aprovacoes.filter((a) => a.inspecao_id === id && a.etapa === k + 1).map((a) => ({ ...clone(a), aprovador: nome(a.aprovador_id) }))[0] ?? null,
+      atual: i.status === "em_aprovacao" && i.aprovacao_etapa === k + 1,
+    }));
+  },
+  /** = POST /api/aprovacoes. Reprovar exige comentário; aprovar a última etapa fecha como aprovada. */
+  decidir(quem: Membro, inspecao_id: ID, decisao: "aprovada" | "reprovada", comentario = ""): Promise<Inspecao["status"]> {
+    exigir(quem, "aprovar");
+    return mutate("inspecoes", (s) => {
+      const i = s.inspecoes.find((x) => x.id === inspecao_id);
+      if (!i) throw new Error("Inspeção não encontrada.");
+      if (i.status !== "em_aprovacao") throw new Error("Esta inspeção não está esperando aprovação.");
+      if (i.responsavel_id === quem.id) throw new Error("Quem aplicou não aprova a própria inspeção.");
+      if (!aprovadoresDaEtapa(s, i).includes(quem.id)) throw new Error("Esta etapa não é sua.");
+      if (decisao === "reprovada" && comentario.trim().length < 3) throw new Error("Diga o motivo da reprovação.");
+      const etapa = i.aprovacao_etapa ?? 1;
+      if (s.aprovacoes.some((a) => a.inspecao_id === i.id && a.etapa === etapa)) throw new Error("Esta etapa já foi decidida.");
+      s.aprovacoes.push({ id: uuid(), org_id: ORG.id, inspecao_id: i.id, etapa, aprovador_id: quem.id, decisao, comentario: comentario.trim() || undefined, em: nowISO() });
+      const total = etapasDe(s, i).length;
+      if (decisao === "reprovada") { i.status = "reprovada"; i.aprovacao_etapa = null; }
+      else if (etapa >= total) { i.status = "aprovada"; i.aprovacao_etapa = null; }
+      else { i.aprovacao_etapa = etapa + 1; avisarAprovadores(s, i.id); }
+      i.updated_at = nowISO();
+      log(s, i.id, quem.id, decisao, { etapa, de: total, comentario: comentario.trim() || undefined });
+      return i.status;
+    });
   },
 
   // ---- painel de indicadores ----
@@ -960,6 +1022,30 @@ function cumprirOcorrencia(s: State, m: Membro, e: InspecaoEnvio, inspecaoId?: I
   o.status = "completa";
   o.updated_at = nowISO();
   return o.id;
+}
+
+function etapasDe(s: State, i: Inspecao): { aprovadores: ID[] }[] {
+  return s.versoes.find((v) => v.id === i.formulario_versao_id)?.definicao.config.aprovacao?.etapas ?? [];
+}
+function aprovadoresDaEtapa(s: State, i: Inspecao): ID[] {
+  return i.status === "em_aprovacao" ? etapasDe(s, i)[(i.aprovacao_etapa ?? 1) - 1]?.aprovadores ?? [] : [];
+}
+/** Quem aprova alguma etapa enxerga a inspeção (mesmo sem acompanhar quem aplicou). */
+function ehAprovador(s: State, m: Membro, i: Inspecao): boolean {
+  return pode(m, "aprovar") && etapasDe(s, i).some((e) => e.aprovadores.includes(m.id));
+}
+function avisarAprovadores(s: State, inspecao_id: ID): void {
+  const i = s.inspecoes.find((x) => x.id === inspecao_id)!;
+  const av = s.avaliados.find((a) => a.id === i.avaliado_id)?.nome ?? "";
+  const form = s.formularios.find((f) => f.id === i.formulario_id)?.nome ?? "";
+  for (const mid of aprovadoresDaEtapa(s, i)) {
+    const m = s.membros.find((x) => x.id === mid);
+    if (!m?.ativo || mid === i.responsavel_id) continue;
+    filaEmail(s, { idem_key: `aprovacao:${i.id}:${i.aprovacao_etapa}:${mid}`, para: m.email,
+      assunto: `Aprovação pendente: ${form} — ${av}`,
+      texto: `A inspeção em ${av} (nota ${i.nota_pct === null ? "—" : String(i.nota_pct).replace(".", ",") + "%"}) espera a sua decisão na etapa ${i.aprovacao_etapa} de ${etapasDe(s, i).length}.`,
+      link: `${location.origin}${location.pathname}#/web/inspecoes/${i.id}` });
+  }
 }
 
 function hojeNaOrg(): string {

@@ -82,3 +82,36 @@ Testes: `tests/e2e-marco2.mjs` (23 verificações). Suíte inteira (`scripts/tes
 3. Reenviar uma inspeção repetia o evento "relatório enviado" no histórico (o e-mail em si já não repetia).
 4. A validação nativa do navegador escondia as nossas mensagens nos campos de e-mail.
 5. A página pública numerava a não conformidade errado ("3." em vez de "1.").
+
+## Marco 3 — acesso, agenda, painel e aprovação · 14/10/2026 · concluído no que dá para fazer sem backend
+
+Testes: `tests/e2e-marco3.mjs` (12), `tests/e2e-agenda.mjs` (12), `tests/e2e-painel.mjs` (8), `tests/e2e-aprovacao.mjs` (7) e `app/test/agenda.test.ts` (10 de unidade).
+Suíte inteira: 30 de unidade + 88 ponta a ponta, verde.
+**Matriz:** must 22 + 9 parciais de 31 · should 10 + 4 de 19 · could 5 + 0 de 19.
+
+| tela | estado | o que falta | o que foi mais difícil do que parecia |
+|---|---|---|---|
+| S30 Permissões (pessoas e equipes) | feito | convidados externos | sessão e lista de membros precisam ser síncronas nas telas; ficou um cache resolvido no localStorage, renovado a cada gravação |
+| S31 Funções | feito | — | o score bar global `.bar` vazou para os gráficos (min-width 220 px); renomeado |
+| S05 Agendamentos | feito | exportar | o filtro com atraso deixava o teste clicar na linha errada |
+| S06 Agendar | feito | — | término por quantidade conta desde o início, não desde a janela; mês curto no dia 31 |
+| S07 Inativar | feito | — | — |
+| M09 Agenda no app | parcial | push com o app fechado (Web Push/VAPID, backend) | — |
+| Painel | feito | exportar, comparação entre avaliados ao longo do tempo | barras com `calc(% − px)` achatavam diferenças; valor agora fica posicionado na ponta |
+| S32 Aprovações + aprovação no S12 | feito | aprovação de plano de ação | quem aprova precisa ver a inspeção mesmo sem acompanhar quem aplicou |
+| S15 Configurações → Aprovação | feito | — | — |
+
+### Decisões tomadas sem confirmação (revisar)
+- **Acesso efetivo = união** do que foi dado à pessoa e às equipes dela. Equipe nova não amplia nada até ser configurada.
+- **Pessoa convidada** começa sem formulários e com todos os avaliados. Quem tem "criar e editar formulários" aplica qualquer um.
+- **Dono da conta** é sempre Administrador e não pode ser desativado; ninguém desativa o próprio acesso.
+- **Agendamento:** "atrasada" é derivada (2 h depois do horário, ou meia-noite se for o dia inteiro). Ocorrências que já venceram quando o agendamento é criado não nascem. Editar refaz só as futuras pendentes.
+- **Inspeção pela agenda** cumpre a ocorrência só se quem aplicou é responsável e formulário/avaliado batem; senão vira avulsa.
+- **Aprovação:** etapas ficam congeladas na versão do formulário; em cada etapa qualquer um dos escolhidos decide; ninguém aprova a própria inspeção; reprovar encerra (não volta para correção).
+- **Painel** conta inspeções finalizadas, em aprovação, aprovadas e reprovadas; "agenda cumprida" só considera o que já venceu.
+
+### Bugs encontrados pelos testes e corrigidos
+1. "Faltam 1 para finalizar" → "Falta 1 questão para finalizar".
+2. Gráfico de barras: largura achatada pela regra global `.bar`.
+3. Tabela do painel estourava a largura no celular (390 px).
+4. "+0 pts vs. anterior" → "igual à anterior"; diferença de nota em p.p.

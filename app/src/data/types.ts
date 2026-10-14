@@ -119,6 +119,8 @@ export interface Inspecao {
   anexos: AnexoMeta[];
   /** ocorrência de agendamento que esta inspeção cumpriu (null = avulsa) */
   ocorrencia_id?: ID | null;
+  /** etapa de aprovação atual (1..n) enquanto status = em_aprovacao */
+  aprovacao_etapa?: number | null;
   // calculado no SERVIDOR com o mesmo form-engine (fonte da verdade)
   nota_pct: number | null;
   pontos: number | null;
@@ -140,7 +142,7 @@ export interface InspecaoEvento {
   id: number;
   inspecao_id: ID;
   membro_id: ID | null;
-  acao: "criada" | "sincronizada" | "finalizada" | "editada" | "reaberta" | "relatorio_enviado" | "excluida";
+  acao: "criada" | "sincronizada" | "finalizada" | "editada" | "reaberta" | "relatorio_enviado" | "excluida" | "aprovada" | "reprovada" | "enviada_aprovacao";
   dados: Record<string, unknown>;
   em: ISO;
 }
@@ -259,6 +261,19 @@ export interface FiltroInspecoes {
   de?: string; // yyyy-mm-dd
   ate?: string;
   status?: InspecaoStatus | "";
+}
+
+// ---- aprovações (S32) ----
+
+export interface Aprovacao {
+  id: ID;
+  org_id: ID;
+  inspecao_id: ID;
+  etapa: number;
+  aprovador_id: ID;
+  decisao: "aprovada" | "reprovada";
+  comentario?: string;
+  em: ISO;
 }
 
 // ---- agendamentos (S05–S07, M09) ----

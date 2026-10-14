@@ -3,7 +3,6 @@ import { EmptyState, PageHeader } from "../ui/primitives";
 import type { IconName } from "../ui/icons";
 
 export const STUBS: Record<string, { id: string; titulo: string; marco: number; icon: IconName; texto: string }> = {
-  "/web/aprovacoes": { id: "S32", titulo: "Aprovações", marco: 3, icon: "stamp", texto: "Inspeções e planos esperando a sua decisão, em uma ou mais etapas." },
   "/web/workflows": { id: "S27–S29", titulo: "Workflows", marco: 4, icon: "flow", texto: "Sequências de formulários que avançam sozinhas conforme a classificação da nota." },
   "/web/formularios/preconfiguradas": { id: "S19", titulo: "Questões pré-configuradas", marco: 4, icon: "copy", texto: "Biblioteca de questões reutilizáveis em vários formulários." },
   "/web/formularios/importar": { id: "S20", titulo: "Importar formulário", marco: 3, icon: "upload", texto: "Monte o formulário numa planilha modelo e importe." },

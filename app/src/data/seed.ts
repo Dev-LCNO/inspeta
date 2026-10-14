@@ -13,7 +13,7 @@ export const TODAS_ACOES: Acao[] = [
 export const FUNCOES: Funcao[] = [
   { id: "fn-admin", nome: "Administrador", acoes: TODAS_ACOES, sistema: true },
   { id: "fn-qualidade", nome: "Analista de qualidade", acoes: ["gerenciar_formularios", "aplicar", "editar_inspecao", "ver_todas_inspecoes", "gerenciar_avaliados", "gerenciar_planos", "aprovar", "ver_painel"] },
-  { id: "fn-supervisor", nome: "Supervisor de lojas", acoes: ["aplicar", "ver_painel"] },
+  { id: "fn-supervisor", nome: "Supervisor de lojas", acoes: ["aplicar", "ver_painel", "aprovar"] },
   { id: "fn-aplicador", nome: "Aplicador", acoes: ["aplicar"] },
 ];
 

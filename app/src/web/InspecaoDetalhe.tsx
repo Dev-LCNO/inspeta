@@ -1,12 +1,13 @@
 // S12 — Detalhe da inspeção
 import { useEffect, useState } from "react";
+import { pode } from "../data/server";
 import { server } from "../data/server";
 import type { Membro } from "../data/types";
 import { baixar, gerarRelatorioPdf, respostaTexto } from "../pdf";
 import { fmt } from "../ui/format";
 import { useData } from "../ui/hooks";
 import { Icon } from "../ui/icons";
-import { Badge, Button, Callout, ErrorState, PageHeader, ScoreHero, SkeletonBlock, StatusBadge, useToast } from "../ui/primitives";
+import { Badge, Button, Callout, Dialog, ErrorState, TextField, PageHeader, ScoreHero, SkeletonBlock, StatusBadge, useToast } from "../ui/primitives";
 import { Link } from "../ui/router";
 import { SituacaoBadge } from "./Planos";
 
@@ -15,9 +16,9 @@ export function InspecaoDetalhe({ me, id }: { me: Membro; id: string }) {
   const [gerando, setGerando] = useState(false);
   const d = useData(async () => {
     const i = await server.obterInspecao(me, id);
-    const [v, avs, fs, ev, todas, planos] = await Promise.all([
+    const [v, avs, fs, ev, todas, planos, aprovacao] = await Promise.all([
       server.obterVersao(i.formulario_versao_id), server.listarAvaliados(), server.listarFormularios(),
-      server.eventos(i.id), server.listarInspecoes(me, {}), server.planosDaInspecao(i.id),
+      server.eventos(i.id), server.listarInspecoes(me, {}), server.planosDaInspecao(i.id), server.aprovacaoDaInspecao(i.id),
     ]);
     const anterior = todas
       .filter((x) => x.formulario_id === i.formulario_id && x.avaliado_id === i.avaliado_id && x.id !== i.id && x.status !== "rascunho"
@@ -25,7 +26,7 @@ export function InspecaoDetalhe({ me, id }: { me: Membro; id: string }) {
       .sort((a, b) => (b.finalizada_em ?? "").localeCompare(a.finalizada_em ?? ""))[0];
     return {
       i, v, avaliado: avs.find((a) => a.id === i.avaliado_id)!, formulario: fs.find((f) => f.id === i.formulario_id)?.nome ?? "Formulário removido",
-      responsavel: server.membros().find((m) => m.id === i.responsavel_id)!, eventos: ev, anterior: anterior?.nota_pct ?? null, planos,
+      responsavel: server.membros().find((m) => m.id === i.responsavel_id)!, eventos: ev, anterior: anterior?.nota_pct ?? null, planos, aprovacao,
     };
   }, [id], ["inspecoes", "planos"]);
 
@@ -41,7 +42,7 @@ export function InspecaoDetalhe({ me, id }: { me: Membro; id: string }) {
 
   if (d.status === "error") return <ErrorState error={d.error} onRetry={d.reload} />;
   if (!d.data) return <div className="stack"><SkeletonBlock h={60} /><SkeletonBlock h={140} /><SkeletonBlock h={400} /></div>;
-  const { i, v, avaliado, formulario, responsavel, eventos, anterior, planos } = d.data;
+  const { i, v, avaliado, formulario, responsavel, eventos, anterior, planos, aprovacao } = d.data;
   const def = v.definicao;
   const classe = def.config.classificacoes?.find((c) => c.nome === i.classificacao) ?? null;
 
@@ -153,6 +154,7 @@ export function InspecaoDetalhe({ me, id }: { me: Membro; id: string }) {
               {avaliado.endereco ? <><dt>Endereço</dt><dd>{avaliado.endereco}</dd></> : null}
             </dl>
           </section>
+          {aprovacao.length ? <CartaoAprovacao me={me} inspecaoId={i.id} responsavelId={i.responsavel_id} etapas={aprovacao} /> : null}
           {i.resultado.nao_conformidades.length ? (
             <section className="card stack-sm" aria-label="Planos de ação">
               <h2 style={{ fontSize: "var(--text-base)" }}>Planos de ação</h2>
@@ -171,7 +173,10 @@ export function InspecaoDetalhe({ me, id }: { me: Membro; id: string }) {
                 <li key={e.id}><span className="pt" aria-hidden="true" /><div>
                   <div style={{ fontWeight: 600 }}>{e.acao === "relatorio_enviado" && Array.isArray(e.dados.para)
                     ? `Relatório enviado por e-mail (${(e.dados.para as string[]).length})`
+                    : e.acao === "aprovada" || e.acao === "reprovada" || e.acao === "enviada_aprovacao"
+                    ? `${{ aprovada: "Aprovada", reprovada: "Reprovada", enviada_aprovacao: "Enviada para aprovação" }[e.acao]} · etapa ${String(e.dados.etapa)} de ${String(e.dados.de)}`
                     : { criada: "Iniciada", sincronizada: "Sincronizada", finalizada: "Finalizada", editada: "Editada", reaberta: "Reaberta", relatorio_enviado: "Relatório gerado (PDF)", excluida: "Excluída" }[e.acao]}</div>
+                  {typeof e.dados.comentario === "string" ? <div className="muted" style={{ fontSize: "var(--text-xs)" }}>“{e.dados.comentario}”</div> : null}
                   {e.acao === "relatorio_enviado" && Array.isArray(e.dados.para) ? <div className="muted" style={{ fontSize: "var(--text-xs)" }}>{(e.dados.para as string[]).join(", ")}</div> : null}
                   <div className="muted num" style={{ fontSize: "var(--text-xs)" }}>{fmt.dataHoraCompleta(e.em)} · {server.membros().find((m) => m.id === e.membro_id)?.nome ?? "sistema"}</div>
                 </div></li>
@@ -181,5 +186,66 @@ export function InspecaoDetalhe({ me, id }: { me: Membro; id: string }) {
         </aside>
       </div>
     </>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// S32 dentro do S12: etapas de aprovação e a decisão de quem é da etapa atual
+// ---------------------------------------------------------------------------
+
+type Etapa = Awaited<ReturnType<typeof server.aprovacaoDaInspecao>>[number];
+
+function CartaoAprovacao({ me, inspecaoId, responsavelId, etapas }: { me: Membro; inspecaoId: string; responsavelId: string; etapas: Etapa[] }) {
+  const toast = useToast();
+  const [decisao, setDecisao] = useState<"aprovada" | "reprovada" | null>(null);
+  const [comentario, setComentario] = useState("");
+  const [erro, setErro] = useState<string | null>(null);
+  const [ocupado, setOcupado] = useState(false);
+  const atual = etapas.find((e) => e.atual);
+  const minha = !!atual && pode(me, "aprovar") && atual.aprovadores.some((a) => a.id === me.id) && responsavelId !== me.id;
+
+  async function confirmar() {
+    if (!decisao) return;
+    setOcupado(true); setErro(null);
+    try {
+      const st = await server.decidir(me, inspecaoId, decisao, comentario);
+      setDecisao(null); setComentario("");
+      toast({ tone: "info", text: st === "aprovada" ? "Inspeção aprovada." : st === "reprovada" ? "Inspeção reprovada." : "Etapa aprovada. Seguiu para a próxima." });
+    } catch (e) { setErro((e as Error).message); }
+    finally { setOcupado(false); }
+  }
+
+  return (
+    <section className="card stack-sm" aria-label="Aprovação">
+      <h2 style={{ fontSize: "var(--text-base)" }}>Aprovação</h2>
+      <ol className="etapas">
+        {etapas.map((e) => (
+          <li key={e.etapa} className={e.decisao ? e.decisao.decisao : e.atual ? "atual" : ""}>
+            <span className="n" aria-hidden="true">{e.decisao ? <Icon n={e.decisao.decisao === "aprovada" ? "check" : "x"} size="sm" /> : e.etapa}</span>
+            <div style={{ minWidth: 0 }}>
+              <div style={{ fontWeight: 600 }}>Etapa {e.etapa}{e.decisao ? ` · ${e.decisao.decisao === "aprovada" ? "aprovada" : "reprovada"} por ${e.decisao.aprovador}` : e.atual ? " · aguardando" : ""}</div>
+              <div className="muted" style={{ fontSize: "var(--text-xs)" }}>{e.decisao ? fmt.dataHoraCompleta(e.decisao.em) : e.aprovadores.map((a) => a.nome).join(" ou ")}</div>
+              {e.decisao?.comentario ? <div style={{ fontSize: "var(--text-sm)", marginTop: 2 }}>“{e.decisao.comentario}”</div> : null}
+            </div>
+          </li>
+        ))}
+      </ol>
+      {minha ? (
+        <div className="row" style={{ gap: "var(--space-2)" }}>
+          <Button icon="check" onClick={() => { setErro(null); setDecisao("aprovada"); }}>Aprovar</Button>
+          <Button variant="secondary" icon="x" onClick={() => { setErro(null); setDecisao("reprovada"); }}>Reprovar</Button>
+        </div>
+      ) : atual && atual.aprovadores.some((a) => a.id === me.id) && responsavelId === me.id
+        ? <p className="muted" style={{ margin: 0, fontSize: "var(--text-xs)" }}>Você aplicou esta inspeção; outra pessoa da etapa precisa decidir.</p> : null}
+      <Dialog open={!!decisao} onClose={() => setDecisao(null)} title={decisao === "aprovada" ? "Aprovar inspeção" : "Reprovar inspeção"}
+        footer={<><Button variant="secondary" onClick={() => setDecisao(null)}>Cancelar</Button>
+          <Button variant={decisao === "reprovada" ? "danger" : "primary"} loading={ocupado} onClick={() => void confirmar()}>{decisao === "aprovada" ? "Aprovar" : "Reprovar"}</Button></>}>
+        <form className="stack" noValidate onSubmit={(e: { preventDefault(): void }) => { e.preventDefault(); void confirmar(); }}>
+          <p style={{ margin: 0 }}>Etapa {atual?.etapa} de {etapas.length}. {decisao === "aprovada" && atual && atual.etapa < etapas.length ? "Depois desta, segue para a próxima etapa." : decisao === "aprovada" ? "É a última etapa: a inspeção fica aprovada." : "A inspeção fica reprovada e o processo termina."}</p>
+          <TextField label={decisao === "reprovada" ? "Motivo" : "Comentário (opcional)"} multiline required={decisao === "reprovada"} value={comentario} onChange={setComentario} error={erro} autoFocus />
+          <button type="submit" hidden />
+        </form>
+      </Dialog>
+    </section>
   );
 }

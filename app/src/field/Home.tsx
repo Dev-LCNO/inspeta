@@ -58,7 +58,7 @@ export function Home({ me }: { me: Membro }) {
         <div className="row-between" style={{ marginTop: "var(--space-4)" }}>
           <AirplaneToggle />
           <div className="row">
-            {me.is_master || me.acoes.includes("gerenciar_formularios") ? <Button variant="ghost" size="sm" icon="chart" onClick={() => navigate("/web/inspecoes")}>Painel web</Button> : null}
+            {me.is_master || me.acoes.some((a) => a !== "aplicar") ? <Button variant="ghost" size="sm" icon="chart" onClick={() => navigate("/web/inspecoes")}>Painel web</Button> : null}
             <Button variant="ghost" size="sm" icon="logout" onClick={() => { server.sair(); navigate("/entrar", { replace: true }); }}>Sair</Button>
           </div>
         </div>
