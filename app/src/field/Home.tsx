@@ -22,7 +22,7 @@ export function Home({ me }: { me: Membro }) {
 
         <Link to="/campo/nova" className="tile primary">
           <span className="ic"><Icon n="plus" size="lg" /></span>
-          <span className="grow"><span className="t">Nova inspeção</span><br /><span className="d">{s?.pacote ? `${s.pacote.formularios.length} formulários disponíveis, mesmo sem internet` : "Sincronize primeiro"}</span></span>
+          <span className="grow"><span className="t">Nova inspeção</span><br /><span className="d">{s?.pacote ? `${s.pacote.formularios.length} ${s.pacote.formularios.length === 1 ? "formulário disponível" : "formulários disponíveis"}, mesmo sem internet` : "Sincronize primeiro"}</span></span>
           <Icon n="right" />
         </Link>
 

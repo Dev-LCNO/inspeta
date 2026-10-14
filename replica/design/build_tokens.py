@@ -27,8 +27,8 @@ for k, v in t["type"].items():
     lines.append(f"  --text-{k}: {v['size']/16:.4g}rem;")
     lines.append(f"  --text-{k}--line-height: {v['line']/16:.4g}rem;")
     lines.append(f"  --text-{k}--font-weight: {v['weight']};")
-for i, v in enumerate(t["space"]):
-    lines.append(f"  --space-{i}: {v}px;")
+for v in t["space"]:  # --space-N = N × 4px (escala do Tailwind)
+    lines.append(f"  --space-{v // 4}: {v}px;")
 for k, v in t["radius"].items():
     lines.append(f"  --radius-{k}: {v}px;")
 for k, v in t["border-width"].items():

@@ -52,7 +52,7 @@ export function Shell({ me, children }: { me: Membro; children: ReactNode }) {
           <Button variant="ghost" icon="menu" label="Abrir menu" onClick={() => setOpen(true)} />
           <div className="brand" style={{ padding: 0, fontSize: "var(--text-base)" }}><span className="mark"><Icon n="checkSquare" size="sm" /></span>Inspeta</div>
         </header>
-        <main className="page" id="conteudo">{children}</main>
+        <main className="page" id="conteudo" tabIndex={-1}>{children}</main>
       </div>
     </div>
   );

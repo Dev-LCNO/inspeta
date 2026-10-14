@@ -49,19 +49,26 @@ export function FormBuilder({ me, id }: { me: Membro; id: string }) {
   const r = useRoute();
   const aba = r.query.get("aba") ?? "questoes";
   const toast = useToast();
-  const carregado = useData(() => Promise.all([server.obterFormulario(id), server.listarFormularios(), server.listarAvaliados()]), [id]);
+  const carregado = useData(async () => {
+    const [f, fs, avs] = await Promise.all([server.obterFormulario(id), server.listarFormularios(), server.listarAvaliados()]);
+    const pub = f.versao_publicada_id ? await server.obterVersao(f.versao_publicada_id) : null;
+    return [f, fs, avs, pub] as const;
+  }, [id]);
 
   const [form, setForm] = useState<Formulario | null>(null);
   const [sel, setSel] = useState<string | null>(null);
   const [save, setSave] = useState<SaveState>({ st: "idle" });
   const [problemas, setProblemas] = useState<DefinitionIssue[] | null>(null);
   const [publicando, setPublicando] = useState(false);
+  const [publicada, setPublicada] = useState<{ numero: number; json: string } | null | undefined>(undefined);
   const versaoRef = useRef<string | undefined>(undefined);
   const dirty = useRef(false);
 
   useEffect(() => {
     if (carregado.data && !form) {
       setForm(carregado.data[0]);
+      const pub = carregado.data[3];
+      setPublicada(pub ? { numero: pub.numero, json: JSON.stringify(pub.definicao) } : null);
       versaoRef.current = carregado.data[0].updated_at;
       setSel(carregado.data[0].rascunho.topicos[0]?.questoes[0]?.key ?? null);
     }
@@ -84,7 +91,6 @@ export function FormBuilder({ me, id }: { me: Membro; id: string }) {
     return () => clearTimeout(t);
   }, [form]);
 
-  const info = carregado.data?.[1].find((f) => f.id === id);
   const avaliados = carregado.data?.[2] ?? [];
 
   if (carregado.status === "error") return <ErrorState error={carregado.error} onRetry={carregado.reload} />;
@@ -115,8 +121,8 @@ export function FormBuilder({ me, id }: { me: Membro; id: string }) {
       const atual = await server.obterFormulario(id);
       versaoRef.current = atual.updated_at;
       setForm(atual);
+      setPublicada({ numero: res.versao.numero, json: JSON.stringify(res.versao.definicao) });
       setProblemas([]);
-      carregado.reload();
       toast({ tone: "info", text: `Versão ${res.versao.numero} publicada. Os aparelhos recebem na próxima sincronização.` });
     } catch (e) {
       toast({ tone: "error", text: (e as Error).message });
@@ -125,8 +131,9 @@ export function FormBuilder({ me, id }: { me: Membro; id: string }) {
     }
   }
 
-  const proximaVersao = (info?.versao_numero ?? 0) + 1;
-  const alterado = !info?.versao_numero || !!info?.tem_alteracoes || dirty.current || save.st === "salvando";
+  const proximaVersao = (publicada?.numero ?? 0) + 1;
+  // compara o rascunho com a versão publicada (não com o estado do autosave)
+  const alterado = !publicada || publicada.json !== JSON.stringify(def);
 
   return (
     <>
@@ -135,8 +142,8 @@ export function FormBuilder({ me, id }: { me: Membro; id: string }) {
         title={<input className="topic-title" style={{ fontSize: "var(--text-xl)", fontWeight: 700, padding: "2px 4px", marginLeft: -6 }}
           aria-label="Nome do formulário" value={form.nome} onChange={(e: { target: { value: string } }) => setNome(e.target.value)} />}
         desc={<span className="row" style={{ gap: 8 }}>
-          {info?.versao_numero ? <span>No campo: <b className="num">v{info.versao_numero}</b></span> : <Badge tone="na">Nunca publicado</Badge>}
-          {alterado && info?.versao_numero ? <Badge tone="warn" icon="edit">Alterações não publicadas</Badge> : null}
+          {publicada ? <span>No campo: <b className="num">v{publicada.numero}</b></span> : <Badge tone="na">Nunca publicado</Badge>}
+          {alterado && publicada ? <Badge tone="warn" icon="edit">Alterações não publicadas</Badge> : null}
           <span aria-live="polite" className="muted" style={{ fontSize: "var(--text-xs)" }}>
             {save.st === "salvando" ? "Salvando…" : save.st === "salvo" ? `Rascunho salvo ${fmt.relativo(save.em)}` : save.st === "erro" ? <span style={{ color: "var(--c-danger)" }}>{save.erro}</span> : "Rascunho salvo"}
           </span>
@@ -318,12 +325,12 @@ function PainelQuestao({ q, numero, topic, idx, choiceQs, set }: {
       {q.tipo === "escolha_simples" || q.tipo === "escolha_multipla" ? (
         <div className="stack-sm">
           <div className="label">Opções, pontos e conformidade</div>
-          <div className="opt-row muted" style={{ fontSize: "var(--text-xs)" }}><span>Texto</span><span>Pontos</span><span>Resultado</span><span /></div>
+          <p className="muted" style={{ margin: 0, fontSize: "var(--text-xs)" }}>Para cada opção: texto, pontos e se ela é conforme, não conforme ou não se aplica.</p>
           {(q.opcoes ?? []).map((o, k) => (
             <div key={o.key} className="stack-sm" style={{ gap: 4 }}>
               <div className="opt-row">
                 <input className="input" aria-label={`Texto da opção ${k + 1}`} value={o.texto} onChange={(e: { target: { value: string } }) => setOpt(k, { texto: e.target.value })} />
-                <input className="input num" aria-label={`Pontos da opção ${k + 1}`} inputMode="decimal" disabled={o.na}
+                <input className="input num" aria-label={`Pontos da opção ${k + 1}`} placeholder="pts" inputMode="decimal" disabled={o.na}
                   value={o.na ? "" : String(o.pontos ?? "").replace(".", ",")} onChange={(e: { target: { value: string } }) => setOpt(k, { pontos: parseNumero(e.target.value) ?? undefined })} />
                 <select className="select" style={{ height: 36, fontSize: "var(--text-sm)" }} aria-label={`Resultado da opção ${k + 1}`}
                   value={o.na ? "na" : o.conforme === true ? "ok" : o.conforme === false ? "nc" : "neutro"}
@@ -337,7 +344,7 @@ function PainelQuestao({ q, numero, topic, idx, choiceQs, set }: {
                   onClick={() => set((x) => { x.opcoes!.splice(k, 1); })} />
               </div>
               {o.conforme === false ? (
-                <div className="row" style={{ gap: 6, paddingLeft: 4, fontSize: "var(--text-xs)" }}>
+                <div className="opt-desc">
                   <label className="muted" htmlFor={"desc-" + o.key}>Desconto</label>
                   <input id={"desc-" + o.key} className="input num" style={{ width: 64, height: 30 }} inputMode="numeric" value={o.desconto?.pct ?? ""}
                     onChange={(e: { target: { value: string } }) => { const v = parseNumero(e.target.value); setOpt(k, { desconto: v ? { pct: Math.min(100, Math.max(0, v)), escopo: o.desconto?.escopo ?? "topico" } : undefined }); }} />
