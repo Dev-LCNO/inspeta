@@ -7,7 +7,7 @@
 //  3. a inspeção só sobe como "completa" depois de todas as fotos confirmadas;
 //  4. o servidor recalcula a nota e é a fonte da verdade; reenviar não duplica.
 import { evaluateForm, type Answer, type Evaluation, type FormDefinition } from "@app/form-engine";
-import { emitChange, kv, serial } from "./kv";
+import { emitChange, kv, onChange, serial } from "./kv";
 import { net } from "./net";
 import { server } from "./server";
 import { OfflineError, type AnexoMeta, type ID, type InspecaoEnvio, type PacoteFormulario, type PacoteSync } from "./types";
@@ -278,7 +278,13 @@ function blobToDataUrl(b: Blob): Promise<string> {
 
 // sincroniza sozinho quando a conexão volta
 export function autoSync(membroId: ID): () => void {
-  const h = () => { if (net.online) void device.sincronizar(membroId); };
+  let estavaOnline = net.online;
+  const h = () => {
+    const agora = net.online;
+    if (agora && !estavaOnline) void device.sincronizar(membroId);
+    estavaOnline = agora;
+  };
   window.addEventListener("online", h);
-  return () => window.removeEventListener("online", h);
+  const off = onChange((t) => { if (t === "net") h(); }); // inclui o "modo avião" do app
+  return () => { window.removeEventListener("online", h); off(); };
 }

@@ -12,6 +12,7 @@ declare module "react" {
   export interface Context<T> { Provider: FC<{ value: T; children?: ReactNode }> }
 
   export function useState<S>(initial: S | (() => S)): [S, Dispatch<SetStateAction<S>>];
+  export function useState<S = undefined>(): [S | undefined, Dispatch<SetStateAction<S | undefined>>];
   export function useEffect(effect: () => void | (() => void), deps?: readonly unknown[]): void;
   export function useLayoutEffect(effect: () => void | (() => void), deps?: readonly unknown[]): void;
   export function useMemo<T>(factory: () => T, deps: readonly unknown[]): T;
@@ -47,6 +48,9 @@ declare module "react/jsx-runtime" {
 // checados pelas suas props (é onde mora a lógica do app).
 declare namespace JSX {
   type Element = import("react").ReactElement;
+  // como no React 18+: componentes podem devolver qualquer ReactNode
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  type ElementType = string | ((props: any) => import("react").ReactNode);
   interface ElementChildrenAttribute { children: {} }
   interface IntrinsicAttributes { key?: string | number | null }
   interface IntrinsicElements { [tag: string]: Record<string, unknown> }
