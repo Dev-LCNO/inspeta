@@ -1,51 +1,51 @@
 feature,area,priority,original,clone,notes
-Login e-mail/senha,auth,must,yes,no,S01 M01
-Multi-organização (tenant),auth,must,yes,no,inferido
+Login e-mail/senha,auth,must,yes,partial,S01 M01 | S01 pronto; autenticação falsa até o /replica-backend (Supabase Auth)
+Multi-organização (tenant),auth,must,yes,partial,inferido | org_id em todo o modelo e no RLS; demo com uma org
 Funções (cargos com ações permitidas),acesso,should,yes,no,S31 só master
-Permissões por usuário (formulários/inspeções/avaliados),acesso,must,yes,no,S30
+Permissões por usuário (formulários/inspeções/avaliados),acesso,must,yes,partial,S30 | regras no servidor e guardas de tela; sem tela S30
 Equipes,acesso,should,yes,no,S30
 Convidados externos,acesso,could,yes,no,S30
-Cadastro de avaliados,avaliados,must,yes,no,S21
+Cadastro de avaliados,avaliados,must,yes,yes,S21 | S21
 Importar avaliados (planilha + mapeamento),avaliados,must,yes,no,S23
 Exportar avaliados,avaliados,could,yes,no,
 Campos personalizados com dependência,avaliados,should,yes,no,S22
-Criar formulário em branco,formularios,must,yes,no,S13
-Tópicos e questões,formularios,must,yes,no,S14
-Questão texto aberto (+ leitura de código),formularios,must,yes,no,
-Questão numérica (formato/limites/incremento),formularios,must,yes,no,
-Questão escolha simples/múltipla (conformidade),formularios,must,yes,no,
-Questão assinatura,formularios,must,yes,no,
-Questão data/hora,formularios,should,yes,no,
-Questão cálculo (fórmula [n]),formularios,should,yes,no,
-Obrigatória / foto obrigatória / documento obrigatório,formularios,must,yes,no,
-Ajuda (texto/arquivo) na questão,formularios,should,yes,no,
+Criar formulário em branco,formularios,must,yes,yes,S13 | S13
+Tópicos e questões,formularios,must,yes,yes,"S14 | S14: criar, ordenar, duplicar, excluir"
+Questão texto aberto (+ leitura de código),formularios,must,yes,partial,leitura por foto via BarcodeDetector; sem câmera ao vivo
+Questão numérica (formato/limites/incremento),formularios,must,yes,partial,"formato, unidade, limites, faixas; falta incremento"
+Questão escolha simples/múltipla (conformidade),formularios,must,yes,yes,
+Questão assinatura,formularios,must,yes,yes,M07
+Questão data/hora,formularios,should,yes,yes,
+Questão cálculo (fórmula [n]),formularios,should,yes,yes,"parser seguro, sem eval"
+Obrigatória / foto obrigatória / documento obrigatório,formularios,must,yes,partial,falta documento obrigatório
+Ajuda (texto/arquivo) na questão,formularios,should,yes,partial,"texto sim, arquivo não"
 Preenchimento automático (última resposta),formularios,should,yes,no,
 Preenchimento único,formularios,could,yes,no,
-Questão/tópico dependente,formularios,must,yes,no,inclui entre tópicos
-Notas por opção e faixas numéricas,notas,must,yes,no,S18
-Desconto % no tópico/formulário,notas,should,yes,no,ex-nocaute
-Classificações coloridas da nota,notas,must,yes,no,S15
-Ocultar nota durante aplicação,notas,could,yes,no,
-Versionamento de formulário,formularios,must,yes,no,congelar versão na inspeção
+Questão/tópico dependente,formularios,must,yes,partial,inclui entre tópicos | motor faz questão e tópico; editor só configura questão
+Notas por opção e faixas numéricas,notas,must,yes,yes,S18 | S18 no painel lateral
+Desconto % no tópico/formulário,notas,should,yes,yes,ex-nocaute
+Classificações coloridas da nota,notas,must,yes,yes,S15 | S15
+Ocultar nota durante aplicação,notas,could,yes,yes,
+Versionamento de formulário,formularios,must,yes,yes,congelar versão na inspeção | versão imutável; inspeção presa à versão — testado
 Documento de referência,formularios,could,yes,no,
 Captura de geolocalização,formularios,should,yes,no,início/fim
-Preenchimento sequencial,formularios,could,yes,no,M11
+Preenchimento sequencial,formularios,could,yes,yes,M11 | M11 'Aplicar de novo'
 Questões pré-configuradas (biblioteca),formularios,could,yes,no,S19
 Importar formulário via Excel,formularios,should,yes,no,S20
 Modelos de questionário,formularios,should,yes,no,
-Vincular avaliados ao formulário,formularios,must,yes,no,S17
-Aplicar inspeção na web,inspecao,must,yes,no,S10
-App mobile offline-first,inspecao,must,yes,no,M06 — começar como PWA
-Sincronismo app/web,inspecao,must,yes,no,M03
-Rascunho e retomada,inspecao,must,yes,no,M08
-Fotos e comentários por questão,inspecao,must,yes,no,
-Leitor QR/código de barras,inspecao,should,yes,no,M10
-Indicador de reincidência,inspecao,should,yes,no,
-Histórico de inspeções com filtros,inspecao,must,yes,no,S04
-Detalhe da inspeção,inspecao,must,yes,no,S12
-Log de edições (export Excel),inspecao,should,yes,no,
-Relatório PDF configurável,relatorios,must,yes,no,S16
-Relatório de não conformidades,relatorios,must,yes,no,
+Vincular avaliados ao formulário,formularios,must,yes,yes,S17 | S17
+Aplicar inspeção na web,inspecao,must,yes,partial,S10 | pelo app de campo aberto no navegador; sem tela S10 própria
+App mobile offline-first,inspecao,must,yes,yes,M06 — começar como PWA | PWA; reabre sem rede — testado
+Sincronismo app/web,inspecao,must,yes,yes,M03 | M03; idempotente por client_uuid — testado
+Rascunho e retomada,inspecao,must,yes,yes,M08 | M08
+Fotos e comentários por questão,inspecao,must,yes,yes,compressão no aparelho ≤1600px — testado
+Leitor QR/código de barras,inspecao,should,yes,partial,M10 | ver questão texto
+Indicador de reincidência,inspecao,should,yes,yes,app e relatório — testado offline
+Histórico de inspeções com filtros,inspecao,must,yes,yes,S04 | S04; filtros na URL
+Detalhe da inspeção,inspecao,must,yes,yes,S12 | S12
+Log de edições (export Excel),inspecao,should,yes,partial,"exporta CSV, não .xlsx"
+Relatório PDF configurável,relatorios,must,yes,partial,S16 | PDF com fotos e assinatura no layout padrão; aba S16 no marco 2
+Relatório de não conformidades,relatorios,must,yes,yes,seção no PDF
 Envio automático de relatório por e-mail,relatorios,must,yes,no,
 Modelos de plano de ação,planos,must,yes,no,S25
 Disparo automático de plano na NC,planos,must,yes,no,
@@ -69,4 +69,4 @@ Conferência de preços,varejo,could,yes,no,v2
 Coletores Zebra/Compex,hardware,could,yes,no,v2
 Cadastro de fornecedores,produto,could,yes,no,v2
 Integração Rastreador / Código PariPassu,integracao,skip,yes,no,ecossistema proprietário
-Marca, ícones e textos do CLICQ,marca,skip,yes,no,propriedade da PariPassu — criar identidade própria
+"Marca, ícones e textos do CLICQ",marca,skip,yes,no,propriedade da PariPassu — criar identidade própria
