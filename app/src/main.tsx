@@ -78,7 +78,8 @@ createRoot(document.getElementById("root")!).render(
   <StrictMode><ToastProvider><App /></ToastProvider></StrictMode>,
 );
 
-if ("serviceWorker" in navigator && location.protocol !== "file:") {
+// a demonstração publicada roda num frame que não aceita service worker: ela marca isso antes de carregar o app
+if ("serviceWorker" in navigator && location.protocol !== "file:" && !(globalThis as { __inspetaSemSW?: boolean }).__inspetaSemSW) {
   window.addEventListener("load", () => { void navigator.serviceWorker.register("./sw.js").catch(() => undefined); });
 }
 // Pede armazenamento persistente (o iOS limpa dados de PWA não instalado sem isso)

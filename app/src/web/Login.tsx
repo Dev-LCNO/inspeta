@@ -40,7 +40,7 @@ export function Login() {
           <Button type="submit" size="lg" block loading={enviando}>{enviando ? "Entrando…" : "Entrar"}</Button>
         </form>
         <Callout tone="info">
-          <b>Ambiente de demonstração.</b> Gestor: <span className="mono">rogerio@exemplo.com</span> · Aplicadora: <span className="mono">ana@exemplo.com</span> · qualquer senha com 4+ caracteres.
+          <b>Ambiente de demonstração.</b> Dono: <span className="mono">rogerio@exemplo.com</span> · Supervisor: <span className="mono">carlos@exemplo.com</span> · Aplicadora: <span className="mono">ana@exemplo.com</span> · qualquer senha com 4+ caracteres.
         </Callout>
       </div>
     </main>

@@ -251,7 +251,23 @@ export function respostaTexto(q: Question, a: Inspecao["respostas"][string], cal
   }
 }
 
+type Salvador = { save(r: { filename: string; data: Blob }): Promise<unknown> };
+
+/**
+ * Entrega um arquivo gerado no navegador. Dentro do visualizador do claude.ai (demonstração publicada)
+ * o download direto é bloqueado: lá o arquivo passa pela capacidade "downloads", que pede confirmação.
+ */
 export function baixar(bytes: Uint8Array, nome: string, tipo = "application/pdf"): void {
+  const host = (globalThis as { claude?: { use?: (n: string) => Promise<unknown> } }).claude;
+  if (host?.use) {
+    void host.use("downloads").then((d) => (d ? (d as Salvador).save({ filename: nome, data: new Blob([new Uint8Array(bytes)], { type: tipo }) }) : baixarDireto(bytes, nome, tipo)))
+      .catch(() => undefined); // recusado pelo usuário ou indisponível: nada a fazer
+    return;
+  }
+  baixarDireto(bytes, nome, tipo);
+}
+
+function baixarDireto(bytes: Uint8Array, nome: string, tipo: string): void {
   const url = URL.createObjectURL(new Blob([new Uint8Array(bytes)], { type: tipo }));
   const a = document.createElement("a");
   a.href = url; a.download = nome;
