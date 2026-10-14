@@ -6,5 +6,6 @@
     "types": [], "typeRoots": ["./node_modules/@types"],
     "paths": { "@app/form-engine": ["./packages/form-engine/src/index.ts"] }
   },
-  "include": ["packages/*/src", "app/src"]
+  "include": ["packages/*/src", "app/src", "backend/*.ts"],
+  "exclude": ["backend/dev.ts"]
 }

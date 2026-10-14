@@ -2,6 +2,7 @@
 import { chromium } from "playwright";
 import assert from "node:assert/strict";
 import fs from "node:fs";
+import { lerEstado, gravarEstado as gravarEstadoB, lerAnexo, copiarServidor, BACKEND } from "./lib/backend.mjs";
 
 const BASE = process.env.BASE ?? "http://localhost:4173/";
 const SHOTS = "replica/clone-screens";
@@ -15,10 +16,7 @@ await ctx.route(/fonts\.(googleapis|gstatic)\.com/, (r) => r.fulfill({ status: 2
 const pg = await ctx.newPage();
 pg.on("console", (m) => { if (m.type() === "error") erros.push(m.text()); });
 pg.on("pageerror", (e) => erros.push("pageerror: " + e.message));
-const estado = () => pg.evaluate(() => new Promise((res) => {
-  const r = indexedDB.open("inspeta", 1);
-  r.onsuccess = () => { const g = r.result.transaction("kv").objectStore("kv").get("srv:state"); g.onsuccess = () => { r.result.close(); res(g.result); }; };
-}));
+const estado = () => lerEstado(pg);
 await pg.goto(BASE + "#/entrar");
 await pg.getByLabel("E-mail").fill("rogerio@exemplo.com");
 await pg.getByLabel("Senha").fill("demo1234");

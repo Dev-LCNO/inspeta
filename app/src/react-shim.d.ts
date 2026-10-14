@@ -55,3 +55,6 @@ declare namespace JSX {
   interface IntrinsicAttributes { key?: string | number | null }
   interface IntrinsicElements { [tag: string]: Record<string, unknown> }
 }
+
+// Variáveis injetadas pelo build (scripts/build.sh --define). Ver backend/.env.example.
+declare const process: { env: { NODE_ENV?: string; INSPETA_API?: string; INSPETA_AUTH?: string; INSPETA_ANON_KEY?: string } };

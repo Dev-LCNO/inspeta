@@ -3,6 +3,7 @@ import { chromium } from "playwright";
 import sharp from "sharp";
 import assert from "node:assert/strict";
 import fs from "node:fs";
+import { lerEstado, gravarEstado as gravarEstadoB, lerAnexo, copiarServidor, BACKEND } from "./lib/backend.mjs";
 
 const BASE = process.env.BASE ?? "http://localhost:4173/";
 const SHOTS = "replica/clone-screens";
@@ -25,10 +26,7 @@ async function entrar(email) {
   await pg.getByRole("button", { name: "Entrar" }).click();
   await pg.waitForURL(/#\/(web|campo)/);
 }
-const estado = () => pg.evaluate(() => new Promise((res) => {
-  const r = indexedDB.open("inspeta", 1);
-  r.onsuccess = () => { const g = r.result.transaction("kv").objectStore("kv").get("srv:state"); g.onsuccess = () => { r.result.close(); res(g.result); }; };
-}));
+const estado = () => lerEstado(pg);
 const dlg = pg.getByRole("dialog");
 
 // ================= S20 importar =================

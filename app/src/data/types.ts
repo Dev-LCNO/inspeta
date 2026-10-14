@@ -219,7 +219,9 @@ export interface EmailSaida {
   texto: string;
   link?: string;
   anexo?: { tipo: "relatorio_pdf"; inspecao_id: ID };
-  status: "enviado" | "sem_destinatario";
+  status: "pendente" | "enviado" | "erro" | "sem_destinatario";
+  enviado_em?: ISO | null;
+  erro?: string;
   criado_em: ISO;
 }
 

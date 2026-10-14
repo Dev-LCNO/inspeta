@@ -4,6 +4,7 @@ import { chromium } from "playwright";
 import sharp from "sharp";
 import assert from "node:assert/strict";
 import fs from "node:fs";
+import { lerEstado, gravarEstado as gravarEstadoB, lerAnexo, copiarServidor, BACKEND } from "./lib/backend.mjs";
 
 const BASE = process.env.BASE ?? "http://localhost:4173/";
 const SHOTS = "replica/clone-screens";
@@ -24,14 +25,8 @@ async function pagina(vp) {
   return p;
 }
 const shot = async (p, nome) => { await p.waitForTimeout(250); await p.screenshot({ path: `${SHOTS}/${nome}.png` }); };
-const estado = (p) => p.evaluate(() => new Promise((res) => {
-  const r = indexedDB.open("inspeta", 1);
-  r.onsuccess = () => { const g = r.result.transaction("kv").objectStore("kv").get("srv:state"); g.onsuccess = () => { r.result.close(); res(g.result); }; };
-}));
-const gravarEstado = (p, v) => p.evaluate((val) => new Promise((res) => {
-  const r = indexedDB.open("inspeta", 1);
-  r.onsuccess = () => { const t = r.result.transaction("kv", "readwrite"); t.objectStore("kv").put(val, "srv:state"); t.oncomplete = () => { r.result.close(); res(); }; };
-}), v);
+const estado = (p) => lerEstado(p);
+const gravarEstado = (p, v) => gravarEstadoB(p, v);
 async function entrar(p, email) {
   await p.goto(BASE + "#/entrar");
   await p.evaluate(() => localStorage.removeItem("inspeta:sessao")); // abas compartilham a sessão

@@ -6,6 +6,7 @@ import { chromium } from "playwright";
 import sharp from "sharp";
 import assert from "node:assert/strict";
 import fs from "node:fs";
+import { lerEstado, gravarEstado as gravarEstadoB, lerAnexo, copiarServidor, BACKEND } from "./lib/backend.mjs";
 
 const BASE = process.env.BASE ?? "http://localhost:4173/";
 const SHOTS = "replica/clone-screens";
@@ -132,7 +133,7 @@ passo("finalizada offline: fica na fila do aparelho");
 await shot(p, "M11-offline-390");
 
 // servidor ainda não sabe de nada
-let srv = await lerKV(p, "srv:state");
+let srv = await lerEstado(p);
 const antes = srv.inspecoes.length;
 assert.equal(srv.inspecoes.filter((i) => i.avaliado_id === "a-bosque").length, 1, "só a inspeção de exemplo antes do sync");
 
@@ -140,7 +141,7 @@ assert.equal(srv.inspecoes.filter((i) => i.avaliado_id === "a-bosque").length, 1
 await p.getByRole("link", { name: /aguardando internet/ }).click();
 await p.getByRole("switch", { name: /Modo avião/ }).uncheck();
 await p.getByText("Tudo em dia").or(p.getByText(/Sincronizado agora/)).first().waitFor({ timeout: 10000 });
-srv = await lerKV(p, "srv:state");
+srv = await lerEstado(p);
 assert.equal(srv.inspecoes.length, antes + 1, "uma inspeção nova no servidor");
 const nova = srv.inspecoes.find((i) => i.device_id !== "seed" && i.avaliado_id === "a-bosque");
 assert.equal(nova.nota_pct, 40);
@@ -149,7 +150,7 @@ assert.equal(nova.qtd_nao_conformidades, 2);
 assert.equal(nova.resultado.questoes["q-vencidos"].reincidente, true);
 assert.equal(nova.anexos.length, 3, "2 fotos + 1 assinatura");
 passo("ao reconectar, o sync enviou sozinho; servidor recalculou 40% Ruim, 2 NCs, reincidente, 3 anexos");
-const fotoSrv = await lerKV(p, "srv:anexo:" + nova.anexos.find((a) => a.tipo === "foto").client_uuid);
+const fotoSrv = await lerAnexo(p, nova.anexos.find((a) => a.tipo === "foto").client_uuid);
 const dims = await sharp(Buffer.from(fotoSrv.split(",")[1], "base64")).metadata();
 assert.ok(Math.max(dims.width, dims.height) <= 1600, "foto comprimida no aparelho");
 passo(`foto 2400×1800 chegou comprimida para ${dims.width}×${dims.height}`);
@@ -162,7 +163,7 @@ await gravarKV(p, "dev:m-ana", dev);
 await p.reload();
 await p.getByRole("button", { name: /Sincronizar agora/ }).click();
 await p.getByText("1 inspeção enviada").waitFor({ timeout: 10000 });
-srv = await lerKV(p, "srv:state");
+srv = await lerEstado(p);
 assert.equal(srv.inspecoes.length, antes + 1, "reenvio NÃO criou outra inspeção");
 assert.equal(srv.inspecoes.filter((i) => i.client_uuid === nova.client_uuid).length, 1);
 passo("reenvio forçado (fila + fotos) não duplicou nada");
@@ -173,14 +174,10 @@ const w = await pagina(web);
 w.on("framenavigated", (f) => { if (f === w.mainFrame()) console.log("   (web navegou para", f.url() + ")"); });
 w.on("crash", () => console.log("   (aba web travou)"));
 // mesmo navegador = mesmo IndexedDB no servidor falso: copia o estado do celular
-const estado = await lerKV(p, "srv:state");
-const anexos = {};
-for (const a of nova.anexos) anexos[a.client_uuid] = await lerKV(p, "srv:anexo:" + a.client_uuid);
 await w.goto(BASE + "#/entrar");
 await w.getByLabel("E-mail").waitFor();
 await w.waitForLoadState("networkidle");
-await gravarKV(w, "srv:state", estado);
-for (const [k, v] of Object.entries(anexos)) await gravarKV(w, "srv:anexo:" + k, v);
+await copiarServidor(p, w, nova.anexos.map((a) => a.client_uuid));
 await shot(w, "S01-1440");
 await w.getByLabel("E-mail").fill("rogerio@exemplo.com");
 await w.getByLabel("Senha").fill("demo1234");
@@ -244,7 +241,7 @@ await w.getByRole("cell", { name: "CD — Doca 3" }).waitFor();
 await shot(w, "S21-1440");
 
 // a inspeção antiga continua na versão 1 (imutável)
-const est2 = await lerKV(w, "srv:state");
+const est2 = await lerEstado(w);
 assert.equal(est2.inspecoes.find((i) => i.client_uuid === nova.client_uuid).formulario_versao_id, "fv-flv-1");
 assert.equal(est2.versoes.filter((v) => v.formulario_id === "f-flv").length, 2);
 passo("inspeção antiga segue presa à v1; formulário tem v1 e v2");
