@@ -2502,10 +2502,10 @@ function criarApi(cfg) {
   async function convidar(email) {
     if (!cfg.serviceKey)
       return;
-    let r = await fetch(`${cfg.authUrl}/invite`, {
+    let r = await fetch(`${cfg.authUrl}/invite${cfg.urlApp ? `?redirect_to=${encodeURIComponent(cfg.urlApp)}` : ""}`, {
       method: "POST",
       headers: { Authorization: `Bearer ${cfg.serviceKey}`, apikey: cfg.serviceKey, "Content-Type": "application/json" },
-      body: JSON.stringify({ email, data: {}, redirect_to: cfg.urlApp })
+      body: JSON.stringify({ email, data: {} })
     });
     if (!r.ok && r.status !== 422)
       console.error("convite falhou", r.status);
@@ -2577,15 +2577,36 @@ function criarApi(cfg) {
   };
 }
 
+// backend/configInterna.ts
+function leitorConfig(sql, ttlMs = 60000) {
+  let cache = null;
+  return async () => {
+    if (cache && Date.now() - cache.em < ttlMs)
+      return cache.v;
+    let rows = await sql`select nome, valor from interno.config`, m = new Map(rows.map((r) => [r.nome, r.valor])), v = {
+      app_url: m.get("app_url") ?? "",
+      origens: (m.get("origens") ?? "").split(",").map((x) => x.trim()).filter(Boolean),
+      cron_secret: m.get("cron_secret") ?? "",
+      url_jobs: m.get("url_jobs") ?? ""
+    };
+    return cache = { em: Date.now(), v }, v;
+  };
+}
+
 // backend/funcao-api.ts
-var env = (k) => Deno.env.get(k) ?? "", sql = postgres(env("SUPABASE_DB_URL"), { prepare: !1, max: 3, idle_timeout: 20 }), handler = criarApi({
-  sql,
-  authUrl: `${env("SUPABASE_URL")}/auth/v1`,
-  anonKey: env("SUPABASE_ANON_KEY"),
-  serviceKey: env("SUPABASE_SERVICE_ROLE_KEY"),
-  urlApp: env("APP_URL"),
-  origens: env("ORIGENS").split(",").map((x) => x.trim()).filter(Boolean),
-  anexos: anexosNoBanco(sql),
-  enviaEmails: !!env("RESEND_API_KEY")
+var env = (k) => Deno.env.get(k) ?? "", sql = postgres(env("SUPABASE_DB_URL"), { prepare: !1, max: 3, idle_timeout: 20 }), config = leitorConfig(sql), anexos = anexosNoBanco(sql), atual = null;
+Deno.serve(async (req) => {
+  let c = await config(), chave = c.app_url + "|" + c.origens.join(",");
+  if (atual?.chave !== chave)
+    atual = { chave, h: criarApi({
+      sql,
+      authUrl: `${env("SUPABASE_URL")}/auth/v1`,
+      anonKey: env("SUPABASE_ANON_KEY"),
+      serviceKey: env("SUPABASE_SERVICE_ROLE_KEY"),
+      urlApp: c.app_url,
+      origens: c.origens,
+      anexos,
+      enviaEmails: !!env("RESEND_API_KEY")
+    }) };
+  return atual.h(req);
 });
-Deno.serve(handler);

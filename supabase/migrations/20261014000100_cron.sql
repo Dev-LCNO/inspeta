@@ -1,9 +1,12 @@
 -- Agendador: a cada minuto o pg_cron chama a função "jobs" (fila de e-mails e agenda) via pg_net.
--- O endereço e o segredo ficam em interno.config, preenchidos pela própria função quando o deploy chama
--- {"acao":"configurar"} — assim nenhum segredo vai para o repositório nem precisa ser colado no painel.
+-- O segredo do agendador nasce aqui, aleatório, em interno.config (fora da API pública); ninguém digita nem copia.
+-- url_jobs, app_url e origens são gravados depois da publicação (não são segredo).
 create schema if not exists interno;
 revoke all on schema interno from public;
 create table if not exists interno.config (nome text primary key, valor text not null);
+insert into interno.config (nome, valor)
+values ('cron_secret', replace(gen_random_uuid()::text, '-', '') || replace(gen_random_uuid()::text, '-', ''))
+on conflict (nome) do nothing;
 
 do $$
 begin

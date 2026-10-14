@@ -37,7 +37,7 @@ create index if not exists registros_plano_token on registros ((dados->>'token_h
 -- fila de e-mails ainda não enviados
 create index if not exists registros_email_pendente on registros (org_id) where colecao = 'emails' and dados->>'status' = 'pendente';
 -- versão publicada é imutável: impede UPDATE no conteúdo
-create or replace function registros_versao_imutavel() returns trigger language plpgsql as $$
+create or replace function registros_versao_imutavel() returns trigger language plpgsql set search_path = '' as $$
 begin
   if old.colecao = 'versoes' and old.dados is distinct from new.dados then
     raise exception 'versão publicada não pode ser alterada';

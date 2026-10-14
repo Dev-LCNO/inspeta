@@ -2327,6 +2327,30 @@ var require_pako = __commonJS(function(exports, module) {
 // backend/funcao-jobs.ts
 import postgres from "npm:postgres@3.4.5";
 
+// backend/configInterna.ts
+function leitorConfig(sql, ttlMs = 60000) {
+  let cache = null;
+  return async () => {
+    if (cache && Date.now() - cache.em < ttlMs)
+      return cache.v;
+    let rows = await sql`select nome, valor from interno.config`, m = new Map(rows.map((r) => [r.nome, r.valor])), v = {
+      app_url: m.get("app_url") ?? "",
+      origens: (m.get("origens") ?? "").split(",").map((x) => x.trim()).filter(Boolean),
+      cron_secret: m.get("cron_secret") ?? "",
+      url_jobs: m.get("url_jobs") ?? ""
+    };
+    return cache = { em: Date.now(), v }, v;
+  };
+}
+function mesmoSegredo(a, b) {
+  if (!a || !b || a.length !== b.length)
+    return !1;
+  let d = 0;
+  for (let i = 0;i < a.length; i++)
+    d |= a.charCodeAt(i) ^ b.charCodeAt(i);
+  return d === 0;
+}
+
 // ../../../opt/npm-tools/node_modules/pdf-lib/node_modules/tslib/tslib.es6.js
 /*! *****************************************************************************
 Copyright (c) Microsoft Corporation.
@@ -15806,30 +15830,25 @@ async function criarOrganizacao(sql, p, op) {
     return { status: 400, corpo: { erro: "Informe nome, dono_nome e dono_email válidos." } };
   if ((await sql`select 1 from registros where colecao = 'membros' and lower(dados->>'email') = ${email} limit 1`).length)
     return { status: 409, corpo: { erro: "Esse e-mail já pertence a uma organização." } };
-  let org = await provisionar(sql, { nome: p.nome.trim(), fuso_horario: p.fuso_horario || "America/Sao_Paulo", dono: { nome: p.dono_nome.trim(), email }, demo: !!p.demo }, op.urlApp), r = await (op.fetch ?? fetch)(`${op.authUrl}/invite`, {
+  let org = await provisionar(sql, { nome: p.nome.trim(), fuso_horario: p.fuso_horario || "America/Sao_Paulo", dono: { nome: p.dono_nome.trim(), email }, demo: !!p.demo }, op.urlApp), r = await (op.fetch ?? fetch)(`${op.authUrl}/invite${op.urlApp ? `?redirect_to=${encodeURIComponent(op.urlApp)}` : ""}`, {
     method: "POST",
     headers: { apikey: op.serviceKey, Authorization: `Bearer ${op.serviceKey}`, "Content-Type": "application/json" },
-    body: JSON.stringify({ email, redirect_to: op.urlApp || void 0 })
+    body: JSON.stringify({ email, data: {} })
   });
   return { status: 200, corpo: { org: org.id, convite: r.ok ? "enviado" : `falhou (${r.status}) — o dono pode usar "Esqueci minha senha" na tela de entrar` } };
 }
-async function configurarAgendador(sql, urlJobs, segredo) {
-  await sql`insert into interno.config (nome, valor) values ('url_jobs', ${urlJobs}), ('cron_secret', ${segredo})
-            on conflict (nome) do update set valor = excluded.valor`;
-}
 
 // backend/funcao-jobs.ts
-var env = (k) => Deno.env.get(k) ?? "", sql = postgres(env("SUPABASE_DB_URL"), { prepare: !1, max: 2, idle_timeout: 20 });
+var env = (k) => Deno.env.get(k) ?? "", sql = postgres(env("SUPABASE_DB_URL"), { prepare: !1, max: 2, idle_timeout: 20 }), config = leitorConfig(sql, 1e4);
 Deno.serve(async (req) => {
-  if (!env("CRON_SECRET") || req.headers.get("x-cron-secret") !== env("CRON_SECRET"))
+  let c = await config();
+  if (!mesmoSegredo(req.headers.get("x-cron-secret") ?? "", c.cron_secret))
     return new Response("proibido", { status: 403 });
   let corpo = req.method === "POST" ? await req.json().catch(() => ({})) : {};
-  if (corpo?.acao === "configurar")
-    return await configurarAgendador(sql, `${env("SUPABASE_URL")}/functions/v1/jobs`, env("CRON_SECRET")), Response.json({ ok: !0 });
   if (corpo?.acao === "provisionar") {
-    let r = await criarOrganizacao(sql, corpo, { authUrl: `${env("SUPABASE_URL")}/auth/v1`, serviceKey: env("SUPABASE_SERVICE_ROLE_KEY"), urlApp: env("APP_URL") });
+    let r = await criarOrganizacao(sql, corpo, { authUrl: `${env("SUPABASE_URL")}/auth/v1`, serviceKey: env("SUPABASE_SERVICE_ROLE_KEY"), urlApp: c.app_url });
     return Response.json(r.corpo, { status: r.status });
   }
-  let emails = env("RESEND_API_KEY") ? await enviarEmailsPendentes(sql, { enviar: enviadorResend(env("RESEND_API_KEY"), env("EMAIL_REMETENTE") || "Inspeta <onboarding@resend.dev>"), urlApp: env("APP_URL") }) : 0, agenda = (/* @__PURE__ */ new Date()).getUTCMinutes() % 15 === 0 ? await rodarAgendas(sql) : 0;
+  let emails = env("RESEND_API_KEY") ? await enviarEmailsPendentes(sql, { enviar: enviadorResend(env("RESEND_API_KEY"), env("EMAIL_REMETENTE") || "Inspeta <onboarding@resend.dev>"), urlApp: c.app_url }) : 0, agenda = (/* @__PURE__ */ new Date()).getUTCMinutes() % 15 === 0 ? await rodarAgendas(sql) : 0;
   return Response.json({ emails, agenda });
 });

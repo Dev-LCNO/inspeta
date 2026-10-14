@@ -2,7 +2,8 @@
 // Rodar: bun backend/jobs.test.ts (com backend/scripts/pg-local.sh no ar)
 import assert from "node:assert/strict";
 import { criarServidor } from "../app/src/data/nucleo";
-import { configurarAgendador, criarOrganizacao, enviarEmailsPendentes, type Mensagem } from "./jobs";
+import { criarOrganizacao, enviarEmailsPendentes, type Mensagem } from "./jobs";
+import { leitorConfig, mesmoSegredo } from "./configInterna";
 import { provisionar } from "./provisionar";
 import { ambientePg, anexosNoBanco, type Sql } from "./repo";
 
@@ -65,9 +66,11 @@ assert.ok(m!.dados.is_master && m!.dados.email === novoEmail.toLowerCase());
 assert.equal((await criarOrganizacao(sql, { nome: "De novo", dono_nome: "Maria", dono_email: novoEmail }, op)).status, 409);
 console.log("✓ criar organização: valida campos, dono vira master, convite enviado, e-mail repetido recusado");
 
-await configurarAgendador(sql, "https://x.supabase.co/functions/v1/jobs", "s1");
-await configurarAgendador(sql, "https://x.supabase.co/functions/v1/jobs", "s2");
-const cfg = await sql<{ nome: string; valor: string }>`select nome, valor from interno.config order by nome`;
-assert.deepEqual(cfg.map((r) => [r.nome, r.valor]), [["cron_secret", "s2"], ["url_jobs", "https://x.supabase.co/functions/v1/jobs"]]);
-console.log("✓ agendador: migração do cron roda (sem pg_cron no local) e 'configurar' grava/atualiza endereço e segredo");
+const ler = leitorConfig(sql, 0);
+const c1 = await ler();
+assert.match(c1.cron_secret, /^[0-9a-f]{64}$/, "segredo aleatório gerado pela migração");
+await sql.unsafe(await Bun.file(new URL("../supabase/migrations/20261014000100_cron.sql", import.meta.url)).text());
+assert.equal((await ler()).cron_secret, c1.cron_secret, "rodar a migração de novo não troca o segredo");
+assert.ok(mesmoSegredo(c1.cron_secret, c1.cron_secret) && !mesmoSegredo(c1.cron_secret, c1.cron_secret.slice(0, -1) + "x") && !mesmoSegredo("", ""));
+console.log("✓ agendador: migração gera segredo aleatório uma vez só; comparação recusa segredo errado ou vazio");
 await sql.close();

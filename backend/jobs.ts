@@ -105,8 +105,3 @@ export async function criarOrganizacao(sql: Sql, p: PedidoOrg, op: { authUrl: st
   return { status: 200, corpo: { org: org.id, convite: r.ok ? "enviado" : `falhou (${r.status}) — o dono pode usar "Esqueci minha senha" na tela de entrar` } };
 }
 
-/** Guarda o endereço da função e o segredo para o pg_cron (supabase/migrations/*_cron.sql). */
-export async function configurarAgendador(sql: Sql, urlJobs: string, segredo: string): Promise<void> {
-  await sql`insert into interno.config (nome, valor) values ('url_jobs', ${urlJobs}), ('cron_secret', ${segredo})
-            on conflict (nome) do update set valor = excluded.valor`;
-}
