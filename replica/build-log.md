@@ -135,3 +135,13 @@ Testes: `app/test/importarFormulario.test.ts` (5) e `tests/e2e-modelos.mjs` (7).
 - A planilha usa `;` entre opções. Num CSV com `;` como separador, o Excel já põe aspas nessas células; quem escreve à mão pode usar `|`. Linhas com problema ficam de fora; problema estrutural (detectado pelo motor) bloqueia a criação.
 - Os modelos prontos são escritos no mesmo formato da planilha e passam pelo mesmo leitor — um teste garante que todos são válidos.
 - Plano devolvido: as respostas recusadas ficam guardadas no histórico do plano, o plano reabre vazio com prazo novo (hoje + prazo do modelo) e o link antigo deixa de valer.
+
+### Marco 3 (relatório e cadastro) · 14/10/2026
+S16 layout configurável do PDF e S22 campos personalizados de avaliados (com dependência), usados também na importação e como filtro do painel.
+Testes: `app/test/camposAvaliado.test.ts` (3), `tests/e2e-relatorio.mjs` (3, lê o PDF com pdftotext e confere pixels da página), `tests/e2e-campos.mjs` (6). Suíte: 39 de unidade + 111 ponta a ponta.
+
+**Decisões (revisar):**
+- **A aparência do PDF segue a última versão publicada**, mesmo para inspeções antigas; o conteúdo continua sendo o da versão em que a inspeção foi feita. Assim, trocar o logo vale para todos os relatórios gerados depois.
+- O logo é reduzido no navegador para no máx. 400 px (PNG mantém transparência) e guardado como anexo, não dentro do formulário.
+- "Só exceções" mostra não conformes, sem resposta e assinaturas; o resto vira "n questões conformes neste tópico".
+- Campo escondido por dependência tem o valor descartado ao salvar. Grafia de lista é corrigida sem diferenciar maiúsculas ("interior" → "Interior").

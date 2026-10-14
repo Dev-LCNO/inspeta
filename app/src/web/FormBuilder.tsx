@@ -11,6 +11,7 @@ import { useData } from "../ui/hooks";
 import { Icon, type IconName } from "../ui/icons";
 import { Badge, Button, Callout, EmptyState, ErrorState, PageHeader, SkeletonBlock, Switch, Tabs, TextField, useToast } from "../ui/primitives";
 import { useRoute } from "../ui/router";
+import { baixar, gerarRelatorioPdf } from "../pdf";
 
 const uuid = () => crypto.randomUUID();
 const TIPOS: { v: QuestionType; label: string; icon: IconName }[] = [
@@ -171,7 +172,7 @@ export function FormBuilder({ me, id }: { me: Membro; id: string }) {
         : aba === "configuracoes" ? <AbaConfig def={def} edit={edit} />
         : aba === "avaliados" ? <AbaAvaliados avaliados={avaliados} vinculados={form.avaliados_vinculados}
             set={(ids) => { dirty.current = true; setForm({ ...form, avaliados_vinculados: ids }); }} />
-        : <AbaRelatorio def={def} edit={edit} />}
+        : <AbaRelatorio def={def} edit={edit} me={me} formId={id} />}
     </>
   );
 }
@@ -624,6 +625,104 @@ function SecaoAprovacao({ def, edit }: { def: FormDefinition; edit: (fn: (d: For
   );
 }
 
+const CORES_PDF = [
+  { hex: "#27466f", nome: "Azul-petróleo" }, { hex: "#1f6f43", nome: "Verde" }, { hex: "#8a1c2b", nome: "Vinho" },
+  { hex: "#b4530f", nome: "Laranja" }, { hex: "#3b3f46", nome: "Grafite" }, { hex: "#5b3a9e", nome: "Roxo" },
+];
+
+/** Reduz o logo para no máx. 400 px, mantendo PNG (transparência) ou JPG. */
+async function prepararLogo(f: File): Promise<string> {
+  if (!/^image\/(png|jpeg)$/.test(f.type)) throw new Error("Use uma imagem PNG ou JPG.");
+  const bmp = await createImageBitmap(f);
+  const k = Math.min(1, 400 / Math.max(bmp.width, bmp.height));
+  const c = document.createElement("canvas");
+  c.width = Math.round(bmp.width * k); c.height = Math.round(bmp.height * k);
+  c.getContext("2d")!.drawImage(bmp, 0, 0, c.width, c.height);
+  bmp.close();
+  return f.type === "image/png" ? c.toDataURL("image/png") : c.toDataURL("image/jpeg", 0.85);
+}
+
+function LayoutPdf({ def, edit, me, formId }: { def: FormDefinition; edit: (fn: (d: FormDefinition) => void) => void; me: Membro; formId: string }) {
+  const toast = useToast();
+  const L = def.config.relatorio?.layout ?? {};
+  const setL = (patch: Partial<NonNullable<NonNullable<FormDefinition["config"]["relatorio"]>["layout"]>>) =>
+    edit((d) => { d.config.relatorio = { ...d.config.relatorio, layout: { ...d.config.relatorio?.layout, ...patch } }; });
+  const logo = useData(async () => (L.logo_id ? (await server.anexo(L.logo_id)) ?? null : null), [L.logo_id]);
+  const fileRef = useRef<HTMLInputElement | null>(null);
+  const [gerando, setGerando] = useState(false);
+  const cor = L.cor ?? CORES_PDF[0]!.hex;
+
+  async function exemplo() {
+    setGerando(true);
+    try {
+      const ult = (await server.listarInspecoes(me, {})).find((i) => i.formulario_id === formId && i.status !== "rascunho");
+      if (!ult) throw new Error("Ainda não há inspeção finalizada deste formulário para usar de exemplo.");
+      const [v, avs, ...fotos] = await Promise.all([server.obterVersao(ult.formulario_versao_id), server.listarAvaliados(),
+        ...ult.anexos.map(async (a) => [a.client_uuid, await server.anexo(a.client_uuid)] as const)]);
+      const comLayout = { ...v.definicao, config: { ...v.definicao.config, relatorio: { ...v.definicao.config.relatorio, layout: L } } };
+      const bytes = await gerarRelatorioPdf({ org: server.org(), inspecao: ult, definicao: comLayout, formulario: (await server.obterFormulario(formId)).nome + " (exemplo)",
+        versao: v.numero, avaliado: avs.find((a) => a.id === ult.avaliado_id)!, responsavel: server.membros().find((m) => m.id === ult.responsavel_id) ?? me,
+        anexos: Object.fromEntries((fotos as (readonly [string, string | undefined])[]).filter((x) => !!x[1]) as [string, string][]), notaAnterior: null, logo: logo.data ?? null });
+      baixar(bytes, "exemplo-relatorio.pdf");
+    } catch (e) { toast({ tone: "error", text: (e as Error).message }); }
+    finally { setGerando(false); }
+  }
+
+  return (
+    <section className="card stack" aria-labelledby="h-layout">
+      <div>
+        <h2 id="h-layout" style={{ fontSize: "var(--text-lg)" }}>Layout do PDF</h2>
+        <p className="muted" style={{ margin: "4px 0 0" }}>Vale para os relatórios gerados depois de publicar, inclusive de inspeções antigas.</p>
+      </div>
+      <fieldset className="group">
+        <legend>Cor</legend>
+        <div className="row" style={{ gap: "var(--space-2)" }}>
+          {CORES_PDF.map((c) => (
+            <button key={c.hex} type="button" className={"swatch" + (cor.toLowerCase() === c.hex ? " on" : "")} aria-pressed={cor.toLowerCase() === c.hex}
+              aria-label={c.nome} title={c.nome} onClick={() => setL({ cor: c.hex })} style={{ background: c.hex }} />
+          ))}
+          <label className="row" style={{ gap: 6, fontSize: "var(--text-sm)" }}>Outra
+            <input type="color" value={cor} aria-label="Escolher outra cor" onChange={(e: { target: { value: string } }) => setL({ cor: e.target.value })} style={{ width: 44, height: 36, border: 0, background: "none" }} /></label>
+        </div>
+      </fieldset>
+      <fieldset className="group">
+        <legend>Logo do cabeçalho</legend>
+        <div className="row">
+          {logo.data ? <img src={logo.data} alt="Logo atual" style={{ maxHeight: 48, maxWidth: 160, objectFit: "contain", background: "var(--c-surface)", padding: 4, borderRadius: "var(--radius-sm)" }} /> : <span className="muted">Sem logo</span>}
+          <Button variant="secondary" size="sm" icon="upload" onClick={() => fileRef.current?.click()}>{L.logo_id ? "Trocar" : "Enviar logo"}</Button>
+          {L.logo_id ? <Button variant="ghost" size="sm" icon="x" onClick={() => setL({ logo_id: null })}>Remover</Button> : null}
+          <input ref={fileRef} type="file" accept="image/png,image/jpeg" hidden aria-label="Arquivo do logo"
+            onChange={async (e: { target: HTMLInputElement }) => {
+              const f = e.target.files?.[0]; e.target.value = "";
+              if (!f) return;
+              try { setL({ logo_id: await server.salvarLogo(await prepararLogo(f)) }); }
+              catch (x) { toast({ tone: "error", text: (x as Error).message }); }
+            }} />
+        </div>
+      </fieldset>
+      <div style={{ display: "grid", gap: "var(--space-4)", gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))" }}>
+        <div className="field"><label htmlFor="pdf-col">Respostas em</label>
+          <select id="pdf-col" className="select" value={L.colunas ?? 1} onChange={(e: { target: { value: string } }) => setL({ colunas: Number(e.target.value) as 1 | 2 })}>
+            <option value={1}>Uma coluna</option><option value={2}>Duas colunas (mais compacto)</option>
+          </select></div>
+        <div className="field"><label htmlFor="pdf-fotos">Fotos</label>
+          <select id="pdf-fotos" className="select" value={L.fotos ?? "questao"} onChange={(e: { target: { value: string } }) => setL({ fotos: e.target.value as "questao" })}>
+            <option value="questao">Junto de cada questão</option><option value="final">Todas no fim, maiores</option><option value="nenhuma">Não incluir fotos</option>
+          </select></div>
+      </div>
+      <div>
+        <Switch label="Mostrar a nota" desc="Nota final, classificação e nota de cada tópico." checked={L.mostrar_nota !== false} onChange={(v) => setL({ mostrar_nota: v })} />
+        <Switch label="Comparar com a inspeção anterior" checked={L.mostrar_anterior !== false} disabled={L.mostrar_nota === false} onChange={(v) => setL({ mostrar_anterior: v })} />
+        <Switch label="Listar só as exceções" desc="Mostra só não conformidades, sem resposta e assinaturas; o resto vira um total por tópico." checked={!!L.so_excecoes} onChange={(v) => setL({ so_excecoes: v })} />
+        <Switch label="Resumo de não conformidades no fim" checked={L.resumo_nc !== false} onChange={(v) => setL({ resumo_nc: v })} />
+      </div>
+      <TextField label="Texto do rodapé" value={L.rodape ?? ""} onChange={(v) => setL({ rodape: v || undefined })} placeholder="Ex.: Uso interno — Qualidade" maxLength={120} />
+      <div><Button variant="secondary" icon="file" loading={gerando} onClick={() => void exemplo()}>Baixar PDF de exemplo</Button>
+        <p className="muted" style={{ margin: "4px 0 0", fontSize: "var(--text-xs)" }}>Usa a última inspeção finalizada deste formulário com o layout desta tela, mesmo antes de publicar.</p></div>
+    </section>
+  );
+}
+
 // ======================= Aba Avaliados (S17) =======================
 function AbaAvaliados({ avaliados, vinculados, set }: { avaliados: Avaliado[]; vinculados: string[]; set: (ids: string[]) => void }) {
   const todos = vinculados.length === 0;
@@ -649,7 +748,7 @@ function AbaAvaliados({ avaliados, vinculados, set }: { avaliados: Avaliado[]; v
 }
 
 // ======================= Aba Relatório (S16) =======================
-function AbaRelatorio({ def, edit }: { def: FormDefinition; edit: (fn: (d: FormDefinition) => void) => void }) {
+function AbaRelatorio({ def, edit, me, formId }: { def: FormDefinition; edit: (fn: (d: FormDefinition) => void) => void; me: Membro; formId: string }) {
   const em = def.config.relatorio?.emails ?? {};
   const [novo, setNovo] = useState("");
   const [erro, setErro] = useState<string | null>(null);
@@ -687,10 +786,7 @@ function AbaRelatorio({ def, edit }: { def: FormDefinition; edit: (fn: (d: FormD
           </form>
         </div>
       </section>
-      <section className="card">
-        <h2 style={{ fontSize: "var(--text-lg)" }}>Layout do PDF</h2>
-        <p className="muted" style={{ margin: "4px 0 0" }}>Logos de cabeçalho e rodapé, cor, uma ou duas colunas e fotos por questão ou por tópico chegam no marco 3. Hoje o PDF sai no layout padrão, com fotos, assinatura e a lista de não conformidades.</p>
-      </section>
+      <LayoutPdf def={def} edit={edit} me={me} formId={formId} />
     </div>
   );
 }

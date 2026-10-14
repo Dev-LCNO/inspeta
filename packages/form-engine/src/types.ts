@@ -89,9 +89,22 @@ export interface FormConfig {
   geo?: "off" | "inicio" | "fim" | "inicio_fim";
   preenchimento_sequencial?: boolean;
   reincidencia_meses?: number;
-  relatorio?: { emails?: { avaliado?: boolean; extras?: string[] } };
+  relatorio?: { emails?: { avaliado?: boolean; extras?: string[] }; layout?: LayoutRelatorio };
   /** Etapas em ordem; em cada uma, qualquer um dos aprovadores decide. */
   aprovacao?: { etapas: { aprovadores: string[] }[] };
+}
+
+/** S16 — aparência do PDF. Tudo opcional: sem nada, sai o layout padrão. */
+export interface LayoutRelatorio {
+  cor?: string; // hex #rrggbb da faixa e títulos
+  logo_id?: string | null; // anexo com o logo (PNG/JPG), guardado à parte
+  colunas?: 1 | 2;
+  fotos?: "questao" | "final" | "nenhuma";
+  so_excecoes?: boolean; // lista só não conformes e não respondidas (o resto vira "n questões conformes")
+  mostrar_nota?: boolean; // padrão true
+  mostrar_anterior?: boolean; // padrão true
+  resumo_nc?: boolean; // padrão true
+  rodape?: string;
 }
 
 export interface FormDefinition {

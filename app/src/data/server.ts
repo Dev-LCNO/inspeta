@@ -6,12 +6,13 @@ import { emitChange, kv, serial } from "./kv";
 import { net } from "./net";
 import { ACESSO_EQUIPE_NOVA, ACESSO_PESSOA_NOVA, resolverMembros } from "./acesso";
 import { descreverRegra, instantesDaRegra, limiteDaOcorrencia, situacaoOcorrencia, somarDias as somarDiasAg, validarRegra } from "./agenda";
-import { agendamentosIniciais, historicoDemo, AVALIADOS, EQUIPES, FORMULARIOS, FUNCOES, HISTORICO, MEMBROS_REG, ORG, PLANOS_MODELO, VERSOES } from "./seed";
+import { validarCampos, validarDefinicaoCampos } from "./camposAvaliado";
+import { agendamentosIniciais, historicoDemo, AVALIADOS, CAMPOS_AVALIADO, EQUIPES, FORMULARIOS, FUNCOES, HISTORICO, MEMBROS_REG, ORG, PLANOS_MODELO, VERSOES } from "./seed";
 import {
   OfflineError,
   type Avaliado, type FiltroInspecoes, type Formulario, type FormularioVersao, type ID, type Inspecao,
   type InspecaoEnvio, type InspecaoEvento, type Membro, type Organizacao, type PacoteSync, type ResultadoEnvio,
-  type Acesso, type Aprovacao, type Agendamento, type Ocorrencia, type OcorrenciaPacote, type OcorrenciaSituacao, type RegraAgenda, type Equipe, type Funcao, type MembroRegistro,
+  type Acesso, type Aprovacao, type CampoAvaliado, type Agendamento, type Ocorrencia, type OcorrenciaPacote, type OcorrenciaSituacao, type RegraAgenda, type Equipe, type Funcao, type MembroRegistro,
   type EmailSaida, type LinhaImportacao, type PlanoAcao, type PlanoModelo, type PlanoStatus, type PlanoSituacao, type ResultadoImportacao,
 } from "./types";
 import type { Answers } from "@app/form-engine";
@@ -33,6 +34,7 @@ interface State {
   agendamentos: Agendamento[];
   ocorrencias: Ocorrencia[];
   aprovacoes: Aprovacao[];
+  camposAvaliado: CampoAvaliado[];
 }
 
 const STATE_KEY = "srv:state";
@@ -58,6 +60,7 @@ async function load(): Promise<State> {
     s.agendamentos ??= agendamentosIniciais(hojeNaOrg());
     s.ocorrencias ??= [];
     s.aprovacoes ??= [];
+    s.camposAvaliado ??= clone(CAMPOS_AVALIADO);
     if (localStorage.getItem(MEMBROS_KEY) === null) publicarMembros(s);
     return s;
   }
@@ -65,7 +68,7 @@ async function load(): Promise<State> {
     v: 1, formularios: clone(FORMULARIOS), versoes: clone(VERSOES), avaliados: clone(AVALIADOS),
     inspecoes: [], eventos: [], eventoSeq: 0, planosModelo: clone(PLANOS_MODELO), planos: [], emails: [],
     membros: clone(MEMBROS_REG), funcoes: clone(FUNCOES), equipes: clone(EQUIPES),
-    agendamentos: agendamentosIniciais(hojeNaOrg()), ocorrencias: [], aprovacoes: [],
+    agendamentos: agendamentosIniciais(hojeNaOrg()), ocorrencias: [], aprovacoes: [], camposAvaliado: clone(CAMPOS_AVALIADO),
   };
   for (const h of HISTORICO) {
     const m = membroEm(fresh, h.responsavel_id);
@@ -336,15 +339,46 @@ export const server = {
     return clone((await load()).avaliados).sort((a, b) => a.nome.localeCompare(b.nome, "pt-BR"));
   },
   criarAvaliado(dados: Pick<Avaliado, "nome"> & Partial<Avaliado>): Promise<Avaliado> {
-    if (!dados.nome?.trim()) return Promise.reject(new Error("O nome do avaliado é obrigatório."));
+    return server.salvarAvaliado(null, dados);
+  },
+  /** Cria (id null) ou edita. Campos personalizados são validados com as regras do S22. */
+  salvarAvaliado(id: ID | null, dados: Partial<Avaliado>): Promise<Avaliado> {
+    if (dados.nome !== undefined && !dados.nome.trim()) return Promise.reject(new Error("O nome do avaliado é obrigatório."));
+    if (id === null && !dados.nome?.trim()) return Promise.reject(new Error("O nome do avaliado é obrigatório."));
+    if (dados.email && !/^\S+@\S+\.\S+$/.test(dados.email)) return Promise.reject(new Error("E-mail inválido."));
     return mutate("avaliados", (s) => {
-      if (dados.codigo_externo && s.avaliados.some((a) => a.codigo_externo === dados.codigo_externo))
+      const atual = id ? s.avaliados.find((a) => a.id === id) : undefined;
+      if (id && !atual) throw new Error("Avaliado não encontrado.");
+      if (dados.codigo_externo && s.avaliados.some((a) => a.codigo_externo === dados.codigo_externo && a.id !== id))
         throw new Error(`Já existe um avaliado com o código ${dados.codigo_externo}.`);
-      const a: Avaliado = { ...dados, id: uuid(), org_id: ORG.id, nome: dados.nome.trim(), ativo: true, created_at: nowISO(), updated_at: nowISO() };
+      const v = validarCampos(s.camposAvaliado, dados.campos ?? atual?.campos ?? {});
+      if (v.erros.length) throw new Error(v.erros.join(". ") + ".");
+      if (atual) {
+        Object.assign(atual, clone(dados), { nome: (dados.nome ?? atual.nome).trim(), campos: v.valores, updated_at: nowISO() });
+        return clone(atual);
+      }
+      const a: Avaliado = { ...clone(dados), id: uuid(), org_id: ORG.id, nome: dados.nome!.trim(), campos: v.valores, ativo: true, created_at: nowISO(), updated_at: nowISO() };
       s.avaliados.push(a);
       return clone(a);
     });
   },
+  async listarCamposAvaliado(): Promise<CampoAvaliado[]> {
+    return clone((await load()).camposAvaliado).sort((a, b) => a.ordem - b.ordem);
+  },
+  /** Grava a lista inteira de campos (criar, editar, reordenar, excluir). Valores de campo excluído saem dos avaliados. */
+  salvarCamposAvaliado(quem: Membro, campos: CampoAvaliado[]): Promise<CampoAvaliado[]> {
+    exigir(quem, "gerenciar_avaliados");
+    const erros = validarDefinicaoCampos(campos);
+    if (erros.length) return Promise.reject(new Error(erros.join(" ")));
+    return mutate("avaliados", (s) => {
+      const ids = new Set(campos.map((c) => c.id));
+      s.camposAvaliado = campos.map((c, i) => ({ ...clone(c), nome: c.nome.trim(), ordem: i + 1,
+        opcoes: c.tipo === "lista" ? (c.opcoes ?? []).map((o) => o.trim()).filter(Boolean) : undefined }));
+      for (const a of s.avaliados) if (a.campos) for (const k of Object.keys(a.campos)) if (!ids.has(k)) delete a.campos[k];
+      return clone(s.camposAvaliado);
+    });
+  },
+
 
   // ---- inspeções (backoffice) ----
   async listarInspecoes(quem: Membro, filtro: FiltroInspecoes = {}): Promise<Inspecao[]> {
@@ -378,6 +412,22 @@ export const server = {
   },
   async anexo(client_uuid: string): Promise<string | undefined> {
     return kv.get<string>("srv:anexo:" + client_uuid);
+  },
+  /** Logo do relatório: guardado como anexo, referenciado pelo layout. */
+  async salvarLogo(dataUrl: string): Promise<string> {
+    if (!/^data:image\/(png|jpeg);base64,/.test(dataUrl)) throw new Error("Use uma imagem PNG ou JPG.");
+    if (dataUrl.length > 400 * 1024) throw new Error("Logo acima de 300 KB mesmo depois de reduzido.");
+    const id = "logo-" + uuid();
+    await kv.set("srv:anexo:" + id, dataUrl);
+    return id;
+  },
+  /** Layout que vale agora: o da versão publicada (aparência acompanha a última publicação, conteúdo segue a versão da inspeção). */
+  async layoutRelatorio(formulario_id: ID) {
+    const s = await load();
+    const f = s.formularios.find((x) => x.id === formulario_id);
+    const v = s.versoes.find((x) => x.id === f?.versao_publicada_id);
+    const layout = v?.definicao.config.relatorio?.layout ?? {};
+    return { layout, logo: layout.logo_id ? (await kv.get<string>("srv:anexo:" + layout.logo_id)) ?? null : null };
   },
   registrarRelatorio(id: ID, quem: ID): Promise<void> {
     return mutate("inspecoes", (s) => log(s, id, quem, "relatorio_enviado", { formato: "pdf" }));
@@ -640,7 +690,10 @@ export const server = {
         const existente = codigo
           ? s.avaliados.find((a) => a.codigo_externo === codigo)
           : s.avaliados.find((a) => !a.codigo_externo && a.nome.toLowerCase() === nome.toLowerCase());
+        const extra = validarCampos(s.camposAvaliado, { ...(existente?.campos ?? {}), ...(l.campos ?? {}) });
+        if (extra.erros.length) { r.erros.push({ linha: n, motivo: extra.erros.join("; ") }); return; }
         const dados = {
+          campos: extra.valores,
           nome, codigo_externo: codigo,
           documento: l.documento?.trim() || undefined, email: l.email?.trim() || undefined,
           telefone: l.telefone?.trim() || undefined, endereco: l.endereco?.trim() || undefined,
@@ -728,15 +781,17 @@ export const server = {
       return n;
     });
   },
-  async painel(quem: Membro, filtro: { de: string; ate: string; formulario_id?: ID }) {
+  async painel(quem: Membro, filtro: { de: string; ate: string; formulario_id?: ID; campos?: Record<ID, string> }) {
     if (!pode(quem, "ver_painel")) throw new Error("Você não tem acesso ao painel.");
     await latency();
     const s = await load();
     const dia = (iso: string) => dataNaOrg(iso);
     const dur = (Date.parse(filtro.ate) - Date.parse(filtro.de)) / 864e5 + 1;
     const antDe = somarDiasAg(filtro.de, -dur), antAte = somarDiasAg(filtro.de, -1);
+    const filtroCampos = Object.entries(filtro.campos ?? {}).filter(([, v]) => v);
+    const avOk = (id: ID) => !filtroCampos.length || filtroCampos.every(([k, v]) => s.avaliados.find((a) => a.id === id)?.campos?.[k] === v);
     const base = s.inspecoes.filter((i) => i.status !== "rascunho" && i.finalizada_em && podeVerInspecao(quem, i)
-      && (!filtro.formulario_id || i.formulario_id === filtro.formulario_id));
+      && (!filtro.formulario_id || i.formulario_id === filtro.formulario_id) && avOk(i.avaliado_id));
     const no = (de: string, ate: string) => base.filter((i) => { const d = dia(i.finalizada_em!); return d >= de && d <= ate; });
     const atual = no(filtro.de, filtro.ate), anterior = no(antDe, antAte);
     const media = (xs: Inspecao[]) => { const v = xs.map((i) => i.nota_pct).filter((x): x is number => x !== null); return v.length ? v.reduce((a, b) => a + b, 0) / v.length : null; };
@@ -795,6 +850,7 @@ export const server = {
       },
       semanas, porAvaliado, topNcs,
       formularios: s.formularios.filter((f) => !f.arquivado).map((f) => ({ id: f.id, nome: f.nome })),
+      camposFiltro: s.camposAvaliado.filter((c) => c.tipo === "lista").map((c) => ({ id: c.id, nome: c.nome, opcoes: c.opcoes ?? [] })),
     };
   },
 

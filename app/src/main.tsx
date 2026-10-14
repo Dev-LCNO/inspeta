@@ -69,7 +69,7 @@ function App() {
   else if (sec === "aprovacoes") page = <Guard me={me} acao="aprovar"><Aprovacoes me={me} /></Guard>;
   else if (sec === "painel") page = <Guard me={me} acao="ver_painel"><Painel me={me} /></Guard>;
   else if (sec === "funcoes") page = <Guard me={me} acao="gerenciar_permissoes"><Funcoes me={me} /></Guard>;
-  else if (sec === "avaliados") page = <Guard me={me} acao="gerenciar_avaliados"><Avaliados /></Guard>;
+  else if (sec === "avaliados") page = <Guard me={me} acao="gerenciar_avaliados"><Avaliados me={me} /></Guard>;
   else page = <EmptyState icon="alert" title="Página não encontrada" action={<Link to="/web/inspecoes" className="btn secondary">Ir para inspeções</Link>} />;
   return <Shell me={me}>{page}</Shell>;
 }

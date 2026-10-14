@@ -8,7 +8,7 @@ Convidados externos,acesso,could,yes,no,S30
 Cadastro de avaliados,avaliados,must,yes,yes,S21 | S21
 Importar avaliados (planilha + mapeamento),avaliados,must,yes,yes,"S23 | S23: .xlsx e .csv (inclui Windows-1252), sugestão de colunas, prévia, upsert por código — testado"
 Exportar avaliados,avaliados,could,yes,yes,CSV com ; e BOM (abre direto no Excel)
-Campos personalizados com dependência,avaliados,should,yes,no,S22
+Campos personalizados com dependência,avaliados,should,yes,yes,"S22: texto, lista, número, data; obrigatório, coluna/filtro na lista, dependência de lista; importação e painel"
 Criar formulário em branco,formularios,must,yes,yes,S13 | S13
 Tópicos e questões,formularios,must,yes,yes,"S14 | S14: criar, ordenar, duplicar, excluir"
 Questão texto aberto (+ leitura de código),formularios,must,yes,partial,leitura por foto via BarcodeDetector; sem câmera ao vivo
@@ -44,7 +44,7 @@ Indicador de reincidência,inspecao,should,yes,yes,app e relatório — testado 
 Histórico de inspeções com filtros,inspecao,must,yes,yes,S04 | S04; filtros na URL
 Detalhe da inspeção,inspecao,must,yes,yes,S12 | S12
 Log de edições (export Excel),inspecao,should,yes,partial,"exporta CSV, não .xlsx"
-Relatório PDF configurável,relatorios,must,yes,partial,S16 | PDF com fotos e assinatura no layout padrão; aba S16 no marco 2
+Relatório PDF configurável,relatorios,must,yes,yes,"S16: cor, logo, 1 ou 2 colunas, fotos junto/no fim/sem, só exceções, nota opcional, rodapé; PDF de exemplo antes de publicar"
 Relatório de não conformidades,relatorios,must,yes,yes,seção no PDF
 Envio automático de relatório por e-mail,relatorios,must,yes,partial,fila idempotente + caixa de saída simulada; envio real entra com o backend (Resend)
 Modelos de plano de ação,planos,must,yes,yes,S25 | S25 reaproveita o editor de questões

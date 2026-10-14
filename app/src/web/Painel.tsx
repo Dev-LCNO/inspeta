@@ -27,13 +27,16 @@ export function Painel({ me }: { me: Membro }) {
   const toast = useToast();
   const per = PERIODOS[r.query.get("periodo") ?? ""] ? r.query.get("periodo")! : "90";
   const form = r.query.get("formulario") ?? "";
+  const campos: Record<string, string> = Object.fromEntries([...r.query.entries()].filter(([k]) => k.startsWith("c.")).map(([k, v]) => [k.slice(2), v]));
+  const chaveCampos = JSON.stringify(campos);
   const ate = hojeOrg(), de = PERIODOS[per]!.de();
-  const d = useData(() => server.painel(me, { de, ate, formulario_id: form || undefined }), [me.id, per, form], ["inspecoes", "agenda", "planos"]);
+  const d = useData(() => server.painel(me, { de, ate, formulario_id: form || undefined, campos }), [me.id, per, form, chaveCampos], ["inspecoes", "agenda", "planos"]);
   const [ultimo, setUltimo] = useState<Dados | null>(null);
   useEffect(() => { if (d.data) setUltimo(d.data); }, [d.data]);
   const dados = d.data ?? ultimo; // recarregar mantém o quadro anterior, esmaecido
   const [gerando, setGerando] = useState(false);
-  const setQ = (p: Record<string, string>) => navigate(withQuery("/web/painel", { periodo: per === "90" ? undefined : per, formulario: form, ...p }), { replace: true });
+  const setQ = (p: Record<string, string>) => navigate(withQuery("/web/painel", { periodo: per === "90" ? undefined : per, formulario: form,
+    ...Object.fromEntries(Object.entries(campos).map(([k, v]) => ["c." + k, v])), ...p }), { replace: true });
 
   async function demo() {
     setGerando(true);
@@ -55,6 +58,12 @@ export function Painel({ me }: { me: Membro }) {
             <option value="">Todos</option>
             {(dados?.formularios ?? []).map((f) => <option key={f.id} value={f.id}>{f.nome}</option>)}
           </select></div>
+        {(dados?.camposFiltro ?? []).map((c) => (
+          <div key={c.id} className="field"><label htmlFor={"pn-" + c.id}>{c.nome}</label>
+            <select id={"pn-" + c.id} className="select" value={campos[c.id] ?? ""} onChange={(e: { target: { value: string } }) => setQ({ ["c." + c.id]: e.target.value })}>
+              <option value="">Todas</option>{c.opcoes.map((o) => <option key={o}>{o}</option>)}
+            </select></div>
+        ))}
         <p className="muted num" style={{ margin: "0 0 10px", fontSize: "var(--text-sm)" }}>{fmt.data(de + "T12:00:00Z")} a {fmt.data(ate + "T12:00:00Z")}</p>
       </div>
 

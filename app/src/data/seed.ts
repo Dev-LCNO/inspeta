@@ -1,6 +1,6 @@
 // Dados de exemplo — textos escritos para este produto (nenhum vem do original).
 import type { FormDefinition } from "@app/form-engine";
-import type { Acao, Acesso, Agendamento, Avaliado, Equipe, Formulario, FormularioVersao, Funcao, MembroRegistro, Organizacao, PlanoModelo } from "./types";
+import type { Acao, Acesso, Agendamento, CampoAvaliado, Avaliado, Equipe, Formulario, FormularioVersao, Funcao, MembroRegistro, Organizacao, PlanoModelo } from "./types";
 
 export const ORG: Organizacao = { id: "org-1", nome: "Distribuidora Exemplo", fuso_horario: "America/Rio_Branco" };
 
@@ -41,6 +41,17 @@ export const AVALIADOS: Avaliado[] = [
   av("a-bosque", "Loja 01 — Bosque", "LJ01", "Av. Ceará, 1500 — Bosque", "gerencia.lj01@exemplo.com"),
   av("a-centro", "Loja 02 — Centro", "LJ02", "Rua Marechal Deodoro, 210 — Centro", "gerencia.lj02@exemplo.com"),
   av("a-doca3", "CD — Doca 3", "CD03", "Estrada do Aeroporto, km 3"),
+];
+AVALIADOS[0]!.campos = { "cp-regional": "Capital", "cp-formato": "Supermercado", "cp-gerente": "Júlia Andrade" };
+AVALIADOS[1]!.campos = { "cp-regional": "Capital", "cp-formato": "Express", "cp-gerente": "Paulo Neri" };
+AVALIADOS[2]!.campos = { "cp-regional": "Capital", "cp-formato": "Centro de distribuição" };
+
+/** S22 — campos personalizados de exemplo. "Cidade" só aparece (e é exigida) quando a regional é Interior. */
+export const CAMPOS_AVALIADO: CampoAvaliado[] = [
+  { id: "cp-regional", nome: "Regional", tipo: "lista", opcoes: ["Capital", "Interior"], obrigatorio: false, na_lista: true, ordem: 1 },
+  { id: "cp-cidade", nome: "Cidade", tipo: "texto", obrigatorio: true, na_lista: false, depende_de: { campo_id: "cp-regional", valor: "Interior" }, ordem: 2 },
+  { id: "cp-formato", nome: "Formato", tipo: "lista", opcoes: ["Supermercado", "Express", "Atacarejo", "Centro de distribuição"], obrigatorio: false, na_lista: true, ordem: 3 },
+  { id: "cp-gerente", nome: "Gerente", tipo: "texto", obrigatorio: false, na_lista: false, ordem: 4 },
 ];
 
 const CLASSES = [

@@ -68,9 +68,24 @@ export interface Avaliado {
   email?: string;
   telefone?: string;
   endereco?: string;
+  /** S22 — valores dos campos personalizados, por id do campo */
+  campos?: Record<ID, string>;
   ativo: boolean;
   created_at: ISO;
   updated_at: ISO;
+}
+
+/** S22 — campo personalizado do cadastro de avaliados (ex.: Regional, Bandeira, Gerente). */
+export interface CampoAvaliado {
+  id: ID;
+  nome: string;
+  tipo: "texto" | "lista" | "numero" | "data";
+  opcoes?: string[]; // tipo lista
+  obrigatorio: boolean;
+  na_lista: boolean; // aparece como coluna na lista de avaliados
+  /** só aparece (e só é exigido) quando outro campo do tipo lista tiver este valor */
+  depende_de?: { campo_id: ID; valor: string } | null;
+  ordem: number;
 }
 
 export interface Formulario {
@@ -209,6 +224,8 @@ export interface EmailSaida {
 }
 
 export interface LinhaImportacao {
+  /** campos personalizados, por id */
+  campos?: Record<ID, string>;
   nome?: string;
   codigo_externo?: string;
   documento?: string;

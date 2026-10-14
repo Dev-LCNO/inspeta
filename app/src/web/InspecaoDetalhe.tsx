@@ -49,7 +49,9 @@ export function InspecaoDetalhe({ me, id }: { me: Membro; id: string }) {
   async function pdf() {
     setGerando(true);
     try {
-      const bytes = await gerarRelatorioPdf({ org: server.org(), inspecao: i, definicao: def, formulario, versao: v.numero, avaliado, responsavel, anexos: fotos, notaAnterior: anterior });
+      const { layout, logo } = await server.layoutRelatorio(i.formulario_id);
+      const comLayout = { ...def, config: { ...def.config, relatorio: { ...def.config.relatorio, layout } } };
+      const bytes = await gerarRelatorioPdf({ org: server.org(), inspecao: i, definicao: comLayout, formulario, versao: v.numero, avaliado, responsavel, anexos: fotos, notaAnterior: anterior, logo });
       baixar(bytes, `inspecao-${avaliado.nome.replace(/[^\w]+/g, "-").toLowerCase()}-${(i.finalizada_em ?? i.iniciada_em).slice(0, 10)}.pdf`);
       await server.registrarRelatorio(i.id, me.id);
       toast({ tone: "info", text: "Relatório baixado." });

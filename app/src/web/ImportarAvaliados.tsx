@@ -5,9 +5,11 @@ import type { LinhaImportacao, ResultadoImportacao } from "../data/types";
 import { baixar } from "../pdf";
 import { gerarCsv, lerPlanilha, type Tabela } from "../planilha";
 import { Icon } from "../ui/icons";
+import { useData } from "../ui/hooks";
 import { Badge, Button, ButtonLink, Callout, EmptyState, PageHeader, useToast } from "../ui/primitives";
 
-type Campo = keyof LinhaImportacao | "";
+type Padrao = Exclude<keyof LinhaImportacao, "campos">;
+type Campo = Padrao | `campo:${string}` | "";
 const CAMPOS: { v: Campo; label: string; sinonimos: string[] }[] = [
   { v: "nome", label: "Nome do avaliado", sinonimos: ["nome", "avaliado", "loja", "unidade", "razao social", "fantasia", "setor", "local"] },
   { v: "codigo_externo", label: "Código", sinonimos: ["codigo", "cod", "id", "filial", "numero da loja", "cod loja"] },
@@ -18,11 +20,11 @@ const CAMPOS: { v: Campo; label: string; sinonimos: string[] }[] = [
 ];
 const norm = (s: string) => s.normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase().replace(/[^a-z0-9 -]/g, " ").replace(/\s+/g, " ").trim();
 
-function sugerir(cabecalho: string[]): Campo[] {
+function sugerir(cabecalho: string[], todos: typeof CAMPOS): Campo[] {
   const usados = new Set<Campo>();
   return cabecalho.map((h) => {
     const n = norm(h);
-    const c = CAMPOS.find((x) => !usados.has(x.v) && x.sinonimos.some((s) => n === s || n.startsWith(s + " ") || n.endsWith(" " + s)));
+    const c = todos.find((x) => !usados.has(x.v) && x.sinonimos.some((s) => n === s || n.startsWith(s + " ") || n.endsWith(" " + s)));
     if (c) { usados.add(c.v); return c.v; }
     return "";
   });
@@ -38,6 +40,8 @@ export function ImportarAvaliados() {
   const [lendo, setLendo] = useState(false);
   const [previa, setPrevia] = useState<ResultadoImportacao | null>(null);
   const [importando, setImportando] = useState(false);
+  const extras = useData(() => server.listarCamposAvaliado(), [], ["avaliados"]);
+  const todos = useMemo(() => [...CAMPOS, ...(extras.data ?? []).map((c) => ({ v: `campo:${c.id}` as Campo, label: c.nome + (c.tipo === "lista" ? ` (${(c.opcoes ?? []).join(" / ")})` : ""), sinonimos: [norm(c.nome)] }))], [extras.data]);
   const [feito, setFeito] = useState<ResultadoImportacao | null>(null);
   const [arrastando, setArrastando] = useState(false);
 
@@ -45,10 +49,14 @@ export function ImportarAvaliados() {
   const corpo = tabela?.slice(1) ?? [];
   const linhas: LinhaImportacao[] = useMemo(() => corpo.map((r) => {
     const l: LinhaImportacao = {};
-    mapa.forEach((c, i) => { if (c && r[i]) l[c] = r[i]; });
+    mapa.forEach((c, i) => {
+      if (!c || !r[i]) return;
+      if (c.startsWith("campo:")) (l.campos ??= {})[c.slice(6)] = r[i]!;
+      else l[c as Padrao] = r[i];
+    });
     return l;
   }), [tabela, mapa]);
-  const duplicados = CAMPOS.filter((c) => mapa.filter((m) => m === c.v).length > 1).map((c) => c.label);
+  const duplicados = todos.filter((c) => mapa.filter((m) => m === c.v).length > 1).map((c) => c.label);
   const semNome = !mapa.includes("nome");
 
   useEffect(() => {
@@ -64,7 +72,7 @@ export function ImportarAvaliados() {
       if (f.size > 5 * 1024 * 1024) throw new Error("Arquivo acima de 5 MB.");
       const t = await lerPlanilha(f);
       if (t.length < 2) throw new Error("A planilha precisa de uma linha de cabeçalho e pelo menos uma linha de dados.");
-      setTabela(t); setMapa(sugerir(t[0]!)); setArquivo(f.name);
+      setTabela(t); setMapa(sugerir(t[0]!, todos)); setArquivo(f.name);
     } catch (e) {
       setTabela(null); setErroArquivo((e as Error).message);
     } finally {
@@ -86,8 +94,8 @@ export function ImportarAvaliados() {
   }
 
   const modelo = () => baixar(gerarCsv([
-    ["Nome", "Código", "CNPJ", "E-mail", "Telefone", "Endereço"],
-    ["Loja 05 — Tucumã", "LJ05", "12.345.678/0005-90", "gerencia.lj05@empresa.com.br", "(68) 99999-0000", "Rua Exemplo, 100"],
+    ["Nome", "Código", "CNPJ", "E-mail", "Telefone", "Endereço", ...(extras.data ?? []).map((c) => c.nome)],
+    ["Loja 05 — Tucumã", "LJ05", "12.345.678/0005-90", "gerencia.lj05@empresa.com.br", "(68) 99999-0000", "Rua Exemplo, 100", ...(extras.data ?? []).map((c) => c.opcoes?.[0] ?? "")],
   ]), "modelo-avaliados.csv", "text/csv;charset=utf-8");
 
   return (
@@ -140,7 +148,8 @@ export function ImportarAvaliados() {
                               style={mapa[i] ? { borderColor: "var(--c-accent)" } : undefined}
                               onChange={(e: { target: { value: string } }) => setMapa((m) => m.map((x, k) => (k === i ? (e.target.value as Campo) : x)))}>
                               <option value="">Ignorar</option>
-                              {CAMPOS.map((c) => <option key={c.v} value={c.v}>{c.label}</option>)}
+                              <optgroup label="Cadastro">{CAMPOS.map((c) => <option key={c.v} value={c.v}>{c.label}</option>)}</optgroup>
+                              {extras.data?.length ? <optgroup label="Campos personalizados">{todos.slice(CAMPOS.length).map((c) => <option key={c.v} value={c.v}>{c.label}</option>)}</optgroup> : null}
                             </select>
                           </td>
                         </tr>

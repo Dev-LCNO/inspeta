@@ -418,3 +418,9 @@ fieldset.q[disabled] .opt, fieldset.q[disabled] .numin, fieldset.q[disabled] tex
 .pick.on { border-color: var(--c-accent); background: var(--c-accent-soft); }
 .pick input { width: 20px; height: 20px; margin: 2px 0 0; accent-color: var(--c-accent); flex: none; }
 .pick small { display: block; color: var(--c-text-muted); font-size: var(--text-xs); margin-top: 2px; }
+.swatch { width: 36px; height: 36px; border-radius: var(--radius-pill); border: 2px solid var(--c-bg); box-shadow: 0 0 0 1px var(--c-border); cursor: pointer; }
+.swatch.on { box-shadow: 0 0 0 2px var(--c-text); }
+.swatch:focus-visible { outline: var(--bw-focus) solid var(--c-focus); outline-offset: 3px; }
+.linklike { background: none; border: 0; padding: 0; font: inherit; cursor: pointer; text-align: left; color: var(--c-text); font-weight: 600; }
+.linklike:hover { text-decoration: underline; }
+.linklike:focus-visible { outline: var(--bw-focus) solid var(--c-focus); outline-offset: 2px; border-radius: 2px; }
