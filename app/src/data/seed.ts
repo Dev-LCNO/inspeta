@@ -1,18 +1,35 @@
 // Dados de exemplo — textos escritos para este produto (nenhum vem do original).
 import type { FormDefinition } from "@app/form-engine";
-import type { Avaliado, Formulario, FormularioVersao, Membro, Organizacao, PlanoModelo } from "./types";
+import type { Acao, Acesso, Avaliado, Equipe, Formulario, FormularioVersao, Funcao, MembroRegistro, Organizacao, PlanoModelo } from "./types";
 
 export const ORG: Organizacao = { id: "org-1", nome: "Distribuidora Exemplo", fuso_horario: "America/Rio_Branco" };
 
-const TODAS: Membro["acoes"] = [
+export const TODAS_ACOES: Acao[] = [
   "gerenciar_formularios", "aplicar", "editar_inspecao", "excluir_inspecao", "ver_todas_inspecoes",
   "gerenciar_avaliados", "gerenciar_planos", "gerenciar_agendamentos", "gerenciar_workflows",
   "gerenciar_permissoes", "aprovar", "ver_painel",
 ];
 
-export const MEMBROS: Membro[] = [
-  { id: "m-rogerio", org_id: ORG.id, nome: "Rogério Marinho", email: "rogerio@exemplo.com", funcao: "Administrador", acoes: TODAS, is_master: true, formularios_permitidos: "todos" },
-  { id: "m-ana", org_id: ORG.id, nome: "Ana Paula Souza", email: "ana@exemplo.com", funcao: "Aplicador", acoes: ["aplicar"], is_master: false, formularios_permitidos: ["f-flv"] },
+export const FUNCOES: Funcao[] = [
+  { id: "fn-admin", nome: "Administrador", acoes: TODAS_ACOES, sistema: true },
+  { id: "fn-qualidade", nome: "Analista de qualidade", acoes: ["gerenciar_formularios", "aplicar", "editar_inspecao", "ver_todas_inspecoes", "gerenciar_avaliados", "gerenciar_planos", "aprovar", "ver_painel"] },
+  { id: "fn-supervisor", nome: "Supervisor de lojas", acoes: ["aplicar", "ver_painel"] },
+  { id: "fn-aplicador", nome: "Aplicador", acoes: ["aplicar"] },
+];
+
+const LIVRE: Acesso = { formularios: "todos", avaliados: "todos", ver_membros: [], ver_equipes: [] };
+const criado = "2026-09-01T12:00:00.000Z";
+
+export const MEMBROS_REG: MembroRegistro[] = [
+  { id: "m-rogerio", org_id: ORG.id, nome: "Rogério Marinho", email: "rogerio@exemplo.com", funcao_id: "fn-admin", is_master: true, ativo: true, acesso: LIVRE, created_at: criado },
+  { id: "m-ana", org_id: ORG.id, nome: "Ana Paula Souza", email: "ana@exemplo.com", funcao_id: "fn-aplicador", is_master: false, ativo: true,
+    acesso: { formularios: ["f-flv"], avaliados: "todos", ver_membros: [], ver_equipes: [] }, created_at: criado },
+  { id: "m-carlos", org_id: ORG.id, nome: "Carlos Eduardo Lima", email: "carlos@exemplo.com", funcao_id: "fn-supervisor", is_master: false, ativo: true,
+    acesso: { formularios: ["f-flv"], avaliados: ["a-bosque", "a-centro"], ver_membros: [], ver_equipes: ["eq-lojas"] }, created_at: criado },
+];
+
+export const EQUIPES: Equipe[] = [
+  { id: "eq-lojas", org_id: ORG.id, nome: "Equipe de lojas", membros: ["m-ana"], acesso: { formularios: [], avaliados: [], ver_membros: [], ver_equipes: [] } },
 ];
 
 const now = "2026-10-01T12:00:00.000Z";

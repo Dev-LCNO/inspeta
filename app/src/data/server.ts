@@ -4,11 +4,13 @@
 import { evaluateForm, validateDefinition, type DefinitionIssue, type FormDefinition, type Previous } from "@app/form-engine";
 import { emitChange, kv, serial } from "./kv";
 import { net } from "./net";
-import { AVALIADOS, FORMULARIOS, HISTORICO, MEMBROS, ORG, PLANOS_MODELO, VERSOES } from "./seed";
+import { ACESSO_EQUIPE_NOVA, ACESSO_PESSOA_NOVA, resolverMembros } from "./acesso";
+import { AVALIADOS, EQUIPES, FORMULARIOS, FUNCOES, HISTORICO, MEMBROS_REG, ORG, PLANOS_MODELO, VERSOES } from "./seed";
 import {
   OfflineError,
   type Avaliado, type FiltroInspecoes, type Formulario, type FormularioVersao, type ID, type Inspecao,
   type InspecaoEnvio, type InspecaoEvento, type Membro, type Organizacao, type PacoteSync, type ResultadoEnvio,
+  type Acesso, type Equipe, type Funcao, type MembroRegistro,
   type EmailSaida, type LinhaImportacao, type PlanoAcao, type PlanoModelo, type PlanoSituacao, type ResultadoImportacao,
 } from "./types";
 import type { Answers } from "@app/form-engine";
@@ -24,10 +26,15 @@ interface State {
   planosModelo: PlanoModelo[];
   planos: PlanoAcao[];
   emails: EmailSaida[];
+  membros: MembroRegistro[];
+  funcoes: Funcao[];
+  equipes: Equipe[];
 }
 
 const STATE_KEY = "srv:state";
 const SESSAO_KEY = "inspeta:sessao";
+/** Cópia síncrona dos membros resolvidos (sessao() e membros() são síncronos nas telas). */
+const MEMBROS_KEY = "inspeta:membros";
 const uuid = () => crypto.randomUUID();
 const nowISO = () => new Date().toISOString();
 const clone = <T,>(v: T): T => structuredClone(v);
@@ -40,14 +47,20 @@ async function load(): Promise<State> {
     s.planosModelo ??= clone(PLANOS_MODELO);
     s.planos ??= [];
     s.emails ??= [];
+    // migração de estados gravados antes do marco 3
+    s.membros ??= clone(MEMBROS_REG);
+    s.funcoes ??= clone(FUNCOES);
+    s.equipes ??= clone(EQUIPES);
+    if (localStorage.getItem(MEMBROS_KEY) === null) publicarMembros(s);
     return s;
   }
   const fresh: State = {
     v: 1, formularios: clone(FORMULARIOS), versoes: clone(VERSOES), avaliados: clone(AVALIADOS),
     inspecoes: [], eventos: [], eventoSeq: 0, planosModelo: clone(PLANOS_MODELO), planos: [], emails: [],
+    membros: clone(MEMBROS_REG), funcoes: clone(FUNCOES), equipes: clone(EQUIPES),
   };
   for (const h of HISTORICO) {
-    const m = MEMBROS.find((x) => x.id === h.responsavel_id)!;
+    const m = membroEm(fresh, h.responsavel_id);
     processar(fresh, m, { ...h, status: "completa", anexos: [], device_id: "seed" }, h.finalizada_em);
   }
   await kv.set(STATE_KEY, fresh);
@@ -55,7 +68,26 @@ async function load(): Promise<State> {
 }
 async function save(s: State, topic: string): Promise<void> {
   await kv.set(STATE_KEY, s);
+  if (topic === "membros") { publicarMembros(s); emitChange("sessao"); }
   emitChange(topic);
+}
+function publicarMembros(s: State): void {
+  localStorage.setItem(MEMBROS_KEY, JSON.stringify(resolverMembros(s.membros, s.funcoes, s.equipes)));
+}
+let cacheRaw: string | null = null;
+let cache: Membro[] = [];
+function membrosCache(): Membro[] {
+  const raw = localStorage.getItem(MEMBROS_KEY) ?? "seed";
+  if (raw !== cacheRaw) {
+    cache = raw === "seed" ? resolverMembros(MEMBROS_REG, FUNCOES, EQUIPES) : JSON.parse(raw) as Membro[];
+    cacheRaw = raw;
+  }
+  return cache;
+}
+function membroEm(s: State, id: ID): Membro {
+  const m = resolverMembros(s.membros, s.funcoes, s.equipes).find((x) => x.id === id);
+  if (!m || !m.ativo) throw new Error("Sessão inválida");
+  return m;
 }
 function mutate<T>(topic: string, fn: (s: State) => T): Promise<T> {
   return serial(async () => {
@@ -88,7 +120,7 @@ function anteriores(s: State, formulario_id: ID, avaliado_id: ID, excetoClient?:
 function processar(s: State, m: Membro, e: InspecaoEnvio, agora = nowISO()): ResultadoEnvio {
   const versao = s.versoes.find((v) => v.id === e.formulario_versao_id && v.formulario_id === e.formulario_id);
   if (!versao) return { client_uuid: e.client_uuid, ok: false, erro: "invalido", mensagem: "Versão do formulário não encontrada." };
-  if (!pode(m, "aplicar") || !podeFormulario(m, e.formulario_id))
+  if (!pode(m, "aplicar") || !podeFormulario(m, e.formulario_id) || !podeAvaliado(m, e.avaliado_id))
     return { client_uuid: e.client_uuid, ok: false, erro: "sem_permissao", mensagem: "Você não tem permissão para este formulário." };
 
   const existente = s.inspecoes.find((i) => i.client_uuid === e.client_uuid);
@@ -141,10 +173,16 @@ export function pode(m: Membro, acao: Membro["acoes"][number]): boolean {
 function podeFormulario(m: Membro, formId: ID): boolean {
   return pode(m, "gerenciar_formularios") || m.formularios_permitidos === "todos" || m.formularios_permitidos.includes(formId);
 }
-function membro(id: ID): Membro {
-  const m = MEMBROS.find((x) => x.id === id);
-  if (!m) throw new Error("Sessão inválida");
-  return m;
+function podeAvaliado(m: Membro, avId: ID): boolean {
+  return m.avaliados_permitidos === "todos" || m.avaliados_permitidos.includes(avId);
+}
+/** = policy inspecoes_ler: as próprias, todas (com a ação) ou as de quem a pessoa acompanha. */
+export function podeVerInspecao(m: Membro, i: Pick<Inspecao, "responsavel_id">): boolean {
+  return pode(m, "ver_todas_inspecoes") || i.responsavel_id === m.id || m.ve_inspecoes_de.includes(i.responsavel_id);
+}
+function exigir(m: Membro, acao: Membro["acoes"][number]): void {
+  const atual = membrosCache().find((x) => x.id === m.id) ?? m;
+  if (!atual.ativo || !pode(atual, acao)) throw new Error("Você não tem permissão para isso.");
 }
 function requireOnline() {
   if (!net.online) throw new OfflineError();
@@ -158,22 +196,25 @@ export const server = {
   // ---- sessão ----
   async entrar(email: string, senha: string): Promise<Membro> {
     await latency();
-    const m = MEMBROS.find((x) => x.email.toLowerCase() === email.trim().toLowerCase());
+    const st = await load();
+    const m = resolverMembros(st.membros, st.funcoes, st.equipes).find((x) => x.email.toLowerCase() === email.trim().toLowerCase());
     if (!m || senha.length < 4) throw new Error("E-mail ou senha incorretos.");
+    if (!m.ativo) throw new Error("Este acesso foi desativado. Fale com o administrador da conta.");
     localStorage.setItem(SESSAO_KEY, m.id);
     emitChange("sessao");
     return m;
   },
   sessao(): Membro | null {
     const id = localStorage.getItem(SESSAO_KEY);
-    return id ? MEMBROS.find((m) => m.id === id) ?? null : null;
+    const m = id ? membrosCache().find((x) => x.id === id) : undefined;
+    return m && m.ativo ? m : null;
   },
   sair(): void {
     localStorage.removeItem(SESSAO_KEY);
     emitChange("sessao");
   },
   org(): Organizacao { return ORG; },
-  membros(): Membro[] { return MEMBROS; },
+  membros(): Membro[] { return membrosCache(); },
 
   // ---- formulários ----
   async listarFormularios() {
@@ -272,9 +313,9 @@ export const server = {
     const busca = (filtro.busca ?? "").trim().toLowerCase();
     const nomeAv = new Map(s.avaliados.map((a) => [a.id, a.nome]));
     const nomeF = new Map(s.formularios.map((f) => [f.id, f.nome]));
-    const nomeM = new Map(MEMBROS.map((m) => [m.id, m.nome]));
+    const nomeM = new Map(membrosCache().map((m) => [m.id, m.nome]));
     return clone(s.inspecoes.filter((i) => {
-      if (!pode(quem, "ver_todas_inspecoes") && i.responsavel_id !== quem.id) return false; // = policy inspecoes_ler
+      if (!podeVerInspecao(quem, i)) return false; // = policy inspecoes_ler
       if (filtro.status && i.status !== filtro.status) return false;
       const d = (i.finalizada_em ?? i.iniciada_em).slice(0, 10);
       if (filtro.de && d < filtro.de) return false;
@@ -288,7 +329,7 @@ export const server = {
   },
   async obterInspecao(quem: Membro, id: ID): Promise<Inspecao> {
     const i = (await load()).inspecoes.find((x) => x.id === id);
-    if (!i || (!pode(quem, "ver_todas_inspecoes") && i.responsavel_id !== quem.id)) throw new Error("Inspeção não encontrada.");
+    if (!i || !podeVerInspecao(quem, i)) throw new Error("Inspeção não encontrada.");
     return clone(i);
   },
   async eventos(id: ID): Promise<InspecaoEvento[]> {
@@ -305,8 +346,8 @@ export const server = {
   async pacote(membroId: ID): Promise<PacoteSync> {
     requireOnline();
     await latency();
-    const m = membro(membroId);
     const s = await load();
+    const m = membroEm(s, membroId);
     const formularios = s.formularios
       .filter((f) => !f.arquivado && f.versao_publicada_id && podeFormulario(m, f.id))
       .map((f) => ({
@@ -319,18 +360,18 @@ export const server = {
       const p = anteriores(s, f.formulario_id, a.id);
       if (Object.keys(p).length) anterioresMap[`${f.formulario_id}|${a.id}`] = p as PacoteSync["anteriores"][string];
     }
-    return { cursor: nowISO(), membro: m, org: ORG, formularios, avaliados: clone(s.avaliados.filter((a) => a.ativo)), anteriores: anterioresMap };
+    return { cursor: nowISO(), membro: m, org: ORG, formularios, avaliados: clone(s.avaliados.filter((a) => a.ativo && podeAvaliado(m, a.id))), anteriores: anterioresMap };
   },
   async enviarAnexo(membroId: ID, client_uuid: string, dataUrl: string): Promise<void> {
     requireOnline();
-    membro(membroId);
+    membroEm(await load(), membroId);
     await latency();
     if (dataUrl.length > 15 * 1024 * 1024 * 1.37) throw new Error("Arquivo acima de 15 MB.");
     await kv.set("srv:anexo:" + client_uuid, dataUrl); // put idempotente por client_uuid
   },
   async enviarInspecoes(membroId: ID, lote: InspecaoEnvio[]): Promise<ResultadoEnvio[]> {
     requireOnline();
-    const m = membro(membroId);
+    const m = membroEm(await load(), membroId);
     await latency();
     if (lote.length > 20) throw new Error("Lote acima de 20 inspeções.");
     const presentes = new Set(await kv.keys("srv:anexo:"));
@@ -394,7 +435,7 @@ export const server = {
       .filter((p) => {
         if (pode(quem, "gerenciar_planos")) return true;
         const i = s.inspecoes.find((x) => x.id === p.inspecao_id);
-        return i?.responsavel_id === quem.id;
+        return !!i && podeVerInspecao(quem, i);
       })
       .map((p) => ({
         ...clone(p),
@@ -453,7 +494,7 @@ export const server = {
       org: ORG,
       avaliado: s.avaliados.find((a) => a.id === p.avaliado_id)?.nome ?? "",
       formulario: s.formularios.find((f) => f.id === p.formulario_id)?.nome ?? "",
-      inspecao: { finalizada_em: i.finalizada_em, nota_pct: i.nota_pct, classificacao: i.classificacao, responsavel: MEMBROS.find((m) => m.id === i.responsavel_id)?.nome ?? "" },
+      inspecao: { finalizada_em: i.finalizada_em, nota_pct: i.nota_pct, classificacao: i.classificacao, responsavel: s.membros.find((m) => m.id === i.responsavel_id)?.nome ?? "" },
       ncs: nc,
     };
   },
@@ -529,6 +570,121 @@ export const server = {
     return mutate("avaliados", aplicar);
   },
 
+  // ---- S30/S31: pessoas, funções e equipes (exige gerenciar_permissoes) ----
+  async listarPessoas(): Promise<MembroRegistro[]> {
+    await latency();
+    return clone((await load()).membros).sort((a, b) => Number(b.ativo) - Number(a.ativo) || a.nome.localeCompare(b.nome, "pt-BR"));
+  },
+  convidarPessoa(quem: Membro, dados: { nome: string; email: string; funcao_id: ID }): Promise<MembroRegistro> {
+    exigir(quem, "gerenciar_permissoes");
+    const nome = dados.nome.trim(), email = dados.email.trim().toLowerCase();
+    if (!nome) return Promise.reject(new Error("Informe o nome."));
+    if (!/^\S+@\S+\.\S+$/.test(email)) return Promise.reject(new Error("Informe um e-mail válido."));
+    return mutate("membros", (s) => {
+      if (s.membros.some((m) => m.email.toLowerCase() === email)) throw new Error("Já existe uma pessoa com esse e-mail.");
+      if (!s.funcoes.some((f) => f.id === dados.funcao_id)) throw new Error("Escolha uma função.");
+      const m: MembroRegistro = { id: uuid(), org_id: ORG.id, nome, email, funcao_id: dados.funcao_id, is_master: false, ativo: true, acesso: clone(ACESSO_PESSOA_NOVA), created_at: nowISO() };
+      s.membros.push(m);
+      filaEmail(s, { idem_key: `convite:${m.id}`, para: email, assunto: `Você foi convidado para ${ORG.nome} no Inspeta`,
+        texto: `${quem.nome} liberou seu acesso como ${s.funcoes.find((f) => f.id === m.funcao_id)?.nome}. Entre com este e-mail e crie sua senha no primeiro acesso.`,
+        link: `${location.origin}${location.pathname}#/entrar` });
+      return clone(m);
+    });
+  },
+  salvarPessoa(quem: Membro, id: ID, patch: Partial<Pick<MembroRegistro, "nome" | "funcao_id" | "ativo" | "acesso">>): Promise<MembroRegistro> {
+    exigir(quem, "gerenciar_permissoes");
+    return mutate("membros", (s) => {
+      const m = s.membros.find((x) => x.id === id);
+      if (!m) throw new Error("Pessoa não encontrada.");
+      if (m.is_master && (patch.funcao_id !== undefined && patch.funcao_id !== m.funcao_id || patch.ativo === false))
+        throw new Error("O dono da conta é sempre Administrador e não pode ser desativado.");
+      if (patch.ativo === false && id === quem.id) throw new Error("Você não pode desativar o seu próprio acesso.");
+      if (patch.funcao_id && !s.funcoes.some((f) => f.id === patch.funcao_id)) throw new Error("Função não encontrada.");
+      if (patch.nome !== undefined && !patch.nome.trim()) throw new Error("Informe o nome.");
+      if (patch.acesso) patch = { ...patch, acesso: limparAcesso(s, patch.acesso, id) };
+      Object.assign(m, clone(patch));
+      return clone(m);
+    });
+  },
+  async listarFuncoes(): Promise<(Funcao & { qtd_pessoas: number })[]> {
+    await latency();
+    const s = await load();
+    return s.funcoes.map((f) => ({ ...clone(f), qtd_pessoas: s.membros.filter((m) => m.ativo && m.funcao_id === f.id).length }));
+  },
+  criarFuncao(quem: Membro, nome: string, copiarDe?: ID): Promise<Funcao> {
+    exigir(quem, "gerenciar_permissoes");
+    return mutate("membros", (s) => {
+      const n = nome.trim();
+      if (!n) throw new Error("Dê um nome à função.");
+      if (s.funcoes.some((f) => f.nome.toLowerCase() === n.toLowerCase())) throw new Error("Já existe uma função com esse nome.");
+      const base = s.funcoes.find((f) => f.id === copiarDe);
+      const f: Funcao = { id: uuid(), nome: n, acoes: base ? [...base.acoes] : ["aplicar"] };
+      s.funcoes.push(f);
+      return clone(f);
+    });
+  },
+  salvarFuncao(quem: Membro, f: Funcao): Promise<Funcao> {
+    exigir(quem, "gerenciar_permissoes");
+    return mutate("membros", (s) => {
+      const atual = s.funcoes.find((x) => x.id === f.id);
+      if (!atual) throw new Error("Função não encontrada.");
+      if (atual.sistema) throw new Error("A função Administrador tem todas as ações e não pode ser alterada.");
+      const n = f.nome.trim();
+      if (!n) throw new Error("Dê um nome à função.");
+      if (s.funcoes.some((x) => x.id !== f.id && x.nome.toLowerCase() === n.toLowerCase())) throw new Error("Já existe uma função com esse nome.");
+      atual.nome = n;
+      atual.acoes = [...new Set(f.acoes)];
+      return clone(atual);
+    });
+  },
+  excluirFuncao(quem: Membro, id: ID): Promise<void> {
+    exigir(quem, "gerenciar_permissoes");
+    return mutate("membros", (s) => {
+      const f = s.funcoes.find((x) => x.id === id);
+      if (!f) return;
+      if (f.sistema) throw new Error("A função Administrador não pode ser excluída.");
+      const n = s.membros.filter((m) => m.funcao_id === id).length;
+      if (n) throw new Error(`Há ${n} ${n === 1 ? "pessoa" : "pessoas"} com esta função. Troque a função delas antes de excluir.`);
+      s.funcoes = s.funcoes.filter((x) => x.id !== id);
+    });
+  },
+  async listarEquipes(): Promise<Equipe[]> {
+    await latency();
+    return clone((await load()).equipes).sort((a, b) => a.nome.localeCompare(b.nome, "pt-BR"));
+  },
+  criarEquipe(quem: Membro, nome: string): Promise<Equipe> {
+    exigir(quem, "gerenciar_permissoes");
+    return mutate("membros", (s) => {
+      const n = nome.trim();
+      if (!n) throw new Error("Dê um nome à equipe.");
+      if (s.equipes.some((e) => e.nome.toLowerCase() === n.toLowerCase())) throw new Error("Já existe uma equipe com esse nome.");
+      const e: Equipe = { id: uuid(), org_id: ORG.id, nome: n, membros: [], acesso: clone(ACESSO_EQUIPE_NOVA) };
+      s.equipes.push(e);
+      return clone(e);
+    });
+  },
+  salvarEquipe(quem: Membro, e: Equipe): Promise<Equipe> {
+    exigir(quem, "gerenciar_permissoes");
+    return mutate("membros", (s) => {
+      const atual = s.equipes.find((x) => x.id === e.id);
+      if (!atual) throw new Error("Equipe não encontrada.");
+      const n = e.nome.trim();
+      if (!n) throw new Error("Dê um nome à equipe.");
+      if (s.equipes.some((x) => x.id !== e.id && x.nome.toLowerCase() === n.toLowerCase())) throw new Error("Já existe uma equipe com esse nome.");
+      atual.nome = n;
+      atual.membros = [...new Set(e.membros)].filter((id) => s.membros.some((m) => m.id === id));
+      atual.acesso = limparAcesso(s, e.acesso);
+      return clone(atual);
+    });
+  },
+  excluirEquipe(quem: Membro, id: ID): Promise<void> {
+    exigir(quem, "gerenciar_permissoes");
+    return mutate("membros", (s) => {
+      s.equipes = s.equipes.filter((e) => e.id !== id);
+      for (const a of [...s.membros.map((m) => m.acesso), ...s.equipes.map((e) => e.acesso)]) a.ver_equipes = a.ver_equipes.filter((x) => x !== id);
+    });
+  },
+
   /** Só para testes/demonstração: volta ao estado inicial. */
   async _reset(): Promise<void> {
     for (const k of await kv.keys("")) await kv.del(k);
@@ -542,6 +698,18 @@ export type ServerApi = typeof server;
 // ---------------------------------------------------------------------------
 // planos de ação: job pós-finalização e utilitários
 // ---------------------------------------------------------------------------
+
+/** Tira referências a coisas que não existem mais e a própria pessoa da lista de acompanhados. */
+function limparAcesso(s: State, a: Acesso, dono?: ID): Acesso {
+  const fs = new Set(s.formularios.map((f) => f.id)), as = new Set(s.avaliados.map((x) => x.id));
+  const ms = new Set(s.membros.map((m) => m.id)), es = new Set(s.equipes.map((e) => e.id));
+  return {
+    formularios: a.formularios === "todos" ? "todos" : [...new Set(a.formularios)].filter((x) => fs.has(x)),
+    avaliados: a.avaliados === "todos" ? "todos" : [...new Set(a.avaliados)].filter((x) => as.has(x)),
+    ver_membros: [...new Set(a.ver_membros)].filter((x) => ms.has(x) && x !== dono),
+    ver_equipes: [...new Set(a.ver_equipes)].filter((x) => es.has(x)),
+  };
+}
 
 function hojeNaOrg(): string {
   return new Intl.DateTimeFormat("en-CA", { timeZone: ORG.fuso_horario }).format(new Date()); // yyyy-mm-dd

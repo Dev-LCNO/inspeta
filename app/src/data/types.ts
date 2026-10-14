@@ -12,15 +12,49 @@ export type Acao =
 
 export interface Organizacao { id: ID; nome: string; fuso_horario: string }
 
+/** S31 — cargo com as ações que permite. "sistema" = Administrador (todas, não se edita). */
+export interface Funcao { id: ID; nome: string; acoes: Acao[]; sistema?: boolean }
+
+/** Escopo de acesso (S30). Vale para pessoa e para equipe; o efetivo é a união. */
+export interface Acesso {
+  formularios: ID[] | "todos";
+  avaliados: ID[] | "todos";
+  /** de quem, além de si, a pessoa vê as inspeções (sem a ação ver_todas_inspecoes) */
+  ver_membros: ID[];
+  ver_equipes: ID[];
+}
+
+export interface Equipe { id: ID; org_id: ID; nome: string; membros: ID[]; acesso: Acesso }
+
+/** Como o membro é guardado (= tabela membros + membros_acesso). */
+export interface MembroRegistro {
+  id: ID;
+  org_id: ID;
+  nome: string;
+  email: string;
+  funcao_id: ID;
+  is_master: boolean;
+  ativo: boolean;
+  acesso: Acesso;
+  created_at: string;
+}
+
+/** Membro resolvido: o que as telas usam (função, ações e escopos já calculados). */
 export interface Membro {
   id: ID;
   org_id: ID;
   nome: string;
   email: string;
+  funcao_id: ID;
   funcao: string;
   acoes: Acao[];
   is_master: boolean;
+  ativo: boolean;
+  equipes: ID[];
   formularios_permitidos: ID[] | "todos";
+  avaliados_permitidos: ID[] | "todos";
+  /** ids de membros cujas inspeções esta pessoa vê, além das próprias */
+  ve_inspecoes_de: ID[];
 }
 
 export interface Avaliado {

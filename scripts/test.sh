@@ -18,4 +18,5 @@ sleep 1
 BASE="http://localhost:$PORT/" node tests/e2e-fatia.mjs | grep -v "web navegou"
 BASE="http://localhost:$PORT/" node tests/e2e-offline-pwa.mjs
 BASE="http://localhost:$PORT/" node tests/e2e-marco2.mjs
+BASE="http://localhost:$PORT/" node tests/e2e-marco3.mjs
 echo "== tudo verde"

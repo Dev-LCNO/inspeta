@@ -6,8 +6,6 @@ export const STUBS: Record<string, { id: string; titulo: string; marco: number; 
   "/web/painel": { id: "Painel", titulo: "Painel de indicadores", marco: 3, icon: "chart", texto: "Nota média por avaliado e por mês, não conformidades mais frequentes e inspeções atrasadas." },
   "/web/aprovacoes": { id: "S32", titulo: "Aprovações", marco: 3, icon: "stamp", texto: "Inspeções e planos esperando a sua decisão, em uma ou mais etapas." },
   "/web/workflows": { id: "S27–S29", titulo: "Workflows", marco: 4, icon: "flow", texto: "Sequências de formulários que avançam sozinhas conforme a classificação da nota." },
-  "/web/permissoes": { id: "S30", titulo: "Permissões", marco: 2, icon: "shield", texto: "Quais formulários cada pessoa ou equipe aplica, quais avaliados enxerga e de quem vê as inspeções." },
-  "/web/funcoes": { id: "S31", titulo: "Funções", marco: 2, icon: "key", texto: "Cargos com as ações que cada um pode fazer: criar formulários, aplicar, editar, aprovar." },
   "/web/formularios/preconfiguradas": { id: "S19", titulo: "Questões pré-configuradas", marco: 4, icon: "copy", texto: "Biblioteca de questões reutilizáveis em vários formulários." },
   "/web/formularios/importar": { id: "S20", titulo: "Importar formulário", marco: 3, icon: "upload", texto: "Monte o formulário numa planilha modelo e importe." },
 };

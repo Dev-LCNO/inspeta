@@ -6,7 +6,7 @@ import { Icon } from "../ui/icons";
 import { Badge, Callout, EmptyState, ErrorState, PageHeader, SkeletonRows } from "../ui/primitives";
 
 export function CaixaSaida() {
-  const l = useData(() => server.caixaDeSaida(), [], ["planos", "inspecoes"]);
+  const l = useData(() => server.caixaDeSaida(), [], ["planos", "inspecoes", "membros"]);
   return (
     <>
       <PageHeader title="E-mails enviados" desc="Relatórios e links de plano de ação que o sistema mandou." />

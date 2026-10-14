@@ -18,8 +18,8 @@ const NAV: { to: string; label: string; icon: IconName; soon?: string }[] = [
   { to: "/web/emails", label: "E-mails enviados", icon: "mail" },
 ];
 const NAV_ADMIN: { to: string; label: string; icon: IconName; soon?: string }[] = [
-  { to: "/web/permissoes", label: "Permissões", icon: "shield", soon: "M2" },
-  { to: "/web/funcoes", label: "Funções", icon: "key", soon: "M2" },
+  { to: "/web/permissoes", label: "Permissões", icon: "shield" },
+  { to: "/web/funcoes", label: "Funções", icon: "key" },
 ];
 
 export function Shell({ me, children }: { me: Membro; children: ReactNode }) {

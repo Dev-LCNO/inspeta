@@ -1,9 +1,9 @@
 feature,area,priority,original,clone,notes
 Login e-mail/senha,auth,must,yes,partial,S01 M01 | S01 pronto; autenticação falsa até o /replica-backend (Supabase Auth)
 Multi-organização (tenant),auth,must,yes,partial,inferido | org_id em todo o modelo e no RLS; demo com uma org
-Funções (cargos com ações permitidas),acesso,should,yes,no,S31 só master
-Permissões por usuário (formulários/inspeções/avaliados),acesso,must,yes,partial,S30 | regras no servidor e guardas de tela; sem tela S30
-Equipes,acesso,should,yes,no,S30
+Funções (cargos com ações permitidas),acesso,should,yes,yes,S31 matriz ações × funções; Administrador fixo; não exclui função em uso
+Permissões por usuário (formulários/inspeções/avaliados),acesso,must,yes,yes,"S30 por pessoa e equipe; servidor aplica no pacote, no envio e na listagem"
+Equipes,acesso,should,yes,yes,S30 aba Equipes; acesso da equipe soma ao da pessoa; 'vê inspeções de' por equipe
 Convidados externos,acesso,could,yes,no,S30
 Cadastro de avaliados,avaliados,must,yes,yes,S21 | S21
 Importar avaliados (planilha + mapeamento),avaliados,must,yes,yes,"S23 | S23: .xlsx e .csv (inclui Windows-1252), sugestão de colunas, prévia, upsert por código — testado"
