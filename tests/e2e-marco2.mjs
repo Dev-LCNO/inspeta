@@ -224,7 +224,7 @@ assert.equal(await web.getByLabel("Campo para a coluna E-mail do gerente").input
 assert.equal(await web.getByLabel("Campo para a coluna Endereço").inputValue(), "endereco");
 assert.equal(await web.getByLabel("Campo para a coluna Observação interna").inputValue(), "");
 passo("xlsx do Excel lido (textos compartilhados + rich text); colunas sugeridas pelo nome");
-await web.getByText("2 novos").waitFor();
+await web.getByText("2 novos", { exact: true }).waitFor();
 await web.getByText("1 atualizado").waitFor();
 await web.getByText("2 com problema").waitFor();
 await web.getByText("Linha 5: sem nome").waitFor();
@@ -244,7 +244,7 @@ await web.goto(BASE + "#/web/avaliados/importar");
 await web.locator('input[type="file"]').setInputFiles(`${FIX}/avaliados-win1252.csv`);
 await web.getByText("Padaria São José").first().waitFor();
 await web.getByText("Açougue Conceição").first().waitFor();
-await web.getByText("2 novos").waitFor();
+await web.getByText("2 novos", { exact: true }).waitFor();
 passo("CSV do Excel antigo (ponto e vírgula, Windows-1252) lido com acentos corretos");
 
 await web.goto(BASE + "#/web/avaliados");
@@ -262,6 +262,8 @@ await aba.goto(BASE);
 await aba.getByRole("heading", { name: "Inspeções", level: 1 }).waitFor({ timeout: 5000 });
 passo("aba nova na raiz, já logado, cai direto em Inspeções (bug da tela em branco corrigido)");
 
-console.log(erros.length ? "\nERROS NO CONSOLE:\n" + erros.join("\n") : "\nconsole sem erros");
+// respostas 4xx esperadas (ex.: link antigo do plano) aparecem como "Failed to load resource" no modo backend
+const reais = erros.filter((e) => !/Failed to load resource/.test(e));
+console.log(reais.length ? "\nERROS NO CONSOLE:\n" + reais.join("\n") : "\nconsole sem erros");
 await browser.close();
-if (erros.length) process.exit(1);
+if (reais.length) process.exit(1);

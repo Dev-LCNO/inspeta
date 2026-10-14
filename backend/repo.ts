@@ -38,13 +38,14 @@ export function anexosNoBanco(sql: Sql): Anexos {
     },
     async presentes(orgId, ids) {
       if (!ids.length) return new Set();
-      const r = await sql<{ id: string }>`select id from anexos where org_id = ${orgId} and id = any(${ids})`;
+      // lista como texto: o mesmo SQL funciona no Bun.SQL e no postgres.js
+      const r = await sql<{ id: string }>`select id from anexos where org_id = ${orgId} and id = any(string_to_array(${ids.join(",")}, ','))`;
       return new Set(r.map((x) => x.id));
     },
   };
 }
 
-export interface OpcoesAmbiente { urlApp: string; anexos: Anexos }
+export interface OpcoesAmbiente { urlApp: string; anexos: Anexos; /** produção: e-mails entram "pendente" e saem pelo Resend */ enviaEmails?: boolean }
 
 /** Um ambiente por requisição (guarda a transação e os avisos daquela chamada). */
 export function ambientePg(sql: Sql, org: Organizacao, op: OpcoesAmbiente): Ambiente & { avisos: Set<string> } {
@@ -58,6 +59,7 @@ export function ambientePg(sql: Sql, org: Organizacao, op: OpcoesAmbiente): Ambi
   return {
     org,
     avisos,
+    enviaEmails: op.enviaEmails,
     async carregar() {
       const [linhas, orgs] = await Promise.all([
         q()<{ colecao: Colecao; id: string; dados: unknown }>`select colecao, id, dados from registros where org_id = ${org.id} order by seq`,

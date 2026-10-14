@@ -1,6 +1,6 @@
 // S01 — Entrar
 import { useState } from "react";
-import { server } from "../data/server";
+import { MODO_DEMO, server } from "../data/server";
 import { Icon } from "../ui/icons";
 import { Button, Callout, TextField } from "../ui/primitives";
 import { navigate } from "../ui/router";
@@ -10,6 +10,16 @@ export function Login() {
   const [senha, setSenha] = useState("");
   const [erro, setErro] = useState<string | null>(null);
   const [enviando, setEnviando] = useState(false);
+  const [esqueci, setEsqueci] = useState<"form" | "enviado" | null>(null);
+
+  async function recuperar(e: { preventDefault(): void }) {
+    e.preventDefault();
+    if (!/^\S+@\S+\.\S+$/.test(email.trim())) { setErro("Digite o seu e-mail para receber o link."); return; }
+    setErro(null); setEnviando(true);
+    try { await server.recuperarSenha(email); setEsqueci("enviado"); }
+    catch (x) { setErro((x as Error).message); }
+    finally { setEnviando(false); }
+  }
 
   async function entrar(e: { preventDefault(): void }) {
     e.preventDefault();
@@ -39,9 +49,18 @@ export function Login() {
             error={erro} />
           <Button type="submit" size="lg" block loading={enviando}>{enviando ? "Entrando…" : "Entrar"}</Button>
         </form>
-        <Callout tone="info">
+        {!MODO_DEMO ? (
+          esqueci === "enviado" ? <Callout tone="ok" icon="mail">Se <b>{email.trim()}</b> estiver cadastrado, enviamos um link para criar uma senha nova. Confira também o spam.</Callout>
+          : esqueci === "form" ? (
+            <form className="row" onSubmit={recuperar} noValidate style={{ alignItems: "center" }}>
+              <span className="muted grow" style={{ fontSize: "var(--text-sm)" }}>Enviaremos um link para o e-mail acima.</span>
+              <Button type="submit" variant="secondary" size="sm" icon="mail" loading={enviando}>Enviar link</Button>
+            </form>
+          ) : <button type="button" className="linklike" style={{ fontWeight: 500, color: "var(--c-accent)", alignSelf: "flex-start" }} onClick={() => { setErro(null); setEsqueci("form"); }}>Esqueci minha senha</button>
+        ) : null}
+        {MODO_DEMO ? <Callout tone="info">
           <b>Ambiente de demonstração.</b> Dono: <span className="mono">rogerio@exemplo.com</span> · Supervisor: <span className="mono">carlos@exemplo.com</span> · Aplicadora: <span className="mono">ana@exemplo.com</span> · qualquer senha com 4+ caracteres.
-        </Callout>
+        </Callout> : null}
       </div>
     </main>
   );

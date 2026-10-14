@@ -42,6 +42,12 @@ export function ImportarAvaliados() {
   const [importando, setImportando] = useState(false);
   const extras = useData(() => server.listarCamposAvaliado(), [], ["avaliados"]);
   const todos = useMemo(() => [...CAMPOS, ...(extras.data ?? []).map((c) => ({ v: `campo:${c.id}` as Campo, label: c.nome + (c.tipo === "lista" ? ` (${(c.opcoes ?? []).join(" / ")})` : ""), sinonimos: [norm(c.nome)] }))], [extras.data]);
+  // os campos personalizados podem chegar depois do arquivo: completa as colunas que ficaram sem destino
+  useEffect(() => {
+    if (!tabela || !extras.data?.length) return;
+    const sug = sugerir(tabela[0]!, todos);
+    setMapa((m) => m.map((x, k) => x || (m.includes(sug[k]!) ? "" : sug[k]!) || ""));
+  }, [todos]);
   const [feito, setFeito] = useState<ResultadoImportacao | null>(null);
   const [arrastando, setArrastando] = useState(false);
 

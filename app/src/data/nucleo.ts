@@ -291,6 +291,12 @@ const server = {
     amb.aviso("sessao");
   },
   org(): Organizacao { return ORG; },
+  /** Backend real: pede o e-mail de redefinição. Na demonstração não há senha de verdade. */
+  async recuperarSenha(_email: string): Promise<void> { await amb.atraso(); },
+  /** Backend real: grava a nova senha da sessão aberta pelo link (convite ou redefinição). */
+  async definirSenha(_senha: string): Promise<Membro> { throw new Error("Na demonstração qualquer senha com 4+ caracteres funciona."); },
+  /** Backend real: o link do e-mail volta com tokens na URL; isto os guarda e diz o motivo. */
+  capturarRetornoAuth(): "recovery" | "invite" | "signup" | null { return null; },
   membros(): Membro[] { return membrosCache(); },
 
   // ---- formulários ----

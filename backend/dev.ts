@@ -4,7 +4,7 @@
 //   /__dev/*              → atalhos de teste (zerar, ler e gravar o estado) — só com DEV=1
 //   /*                    → arquivos do app (pasta APP_DIR)
 // Uso: DATABASE_URL=postgres://... APP_DIR=app/dist-real bun backend/dev.ts
-import { readFileSync, existsSync, statSync } from "node:fs";
+import { readFileSync, readdirSync, existsSync, statSync } from "node:fs";
 import { join, extname } from "node:path";
 import { criarApi } from "./api";
 import { authLocal, criarUsuarioLocal, duracaoLocal, limparAuthLocal } from "./authLocal";
@@ -21,7 +21,8 @@ const BASE = `http://localhost:${PORT}`;
 if (process.env.AUTH_LOCAL_DURACAO) duracaoLocal.s = Number(process.env.AUTH_LOCAL_DURACAO);
 
 const sql = new Bun.SQL(DB) as unknown as Sql & { unsafe(q: string): Promise<unknown> };
-await sql.unsafe(readFileSync(new URL("./supabase/migrations/20261014000000_inspeta.sql", import.meta.url), "utf8"));
+const MIG = new URL("../supabase/migrations/", import.meta.url);
+for (const f of readdirSync(MIG).filter((x) => x.endsWith(".sql")).sort()) await sql.unsafe(readFileSync(new URL(f, MIG), "utf8"));
 
 const anexos = anexosNoBanco(sql);
 const api = criarApi({ sql, authUrl: `${BASE}/auth/v1`, anonKey: "anon-local", serviceKey: "service-local", urlApp: `${BASE}/`, anexos });
@@ -51,6 +52,12 @@ Bun.serve({
       if (p === "/__dev/estado" && req.method === "GET") return Response.json(await amb.carregar());
       if (p === "/__dev/estado" && req.method === "PUT") { const s = await req.json(); await amb.exclusivo(async () => { await amb.carregar(); await amb.gravar(s as never); }); return Response.json({ ok: true }); }
       if (p === "/__dev/anexo") return Response.json({ data: (await anexos.get(orgDemo!.id, url.searchParams.get("id") ?? "")) ?? null });
+      if (p === "/__dev/org") { // segunda organização vazia, para testar isolamento
+        const b = (await req.json()) as { nome: string; email: string };
+        const o = await provisionar(sql, { nome: b.nome, dono: { nome: "Dona", email: b.email } }, `${BASE}/`);
+        criarUsuarioLocal(b.email, "demo1234");
+        return Response.json(o);
+      }
       if (p === "/__dev/emails") return Response.json({ enviados: await enviarEmailsPendentes(sql, { enviar: async () => ({ ok: true }) }) });
     }
     // arquivos do app

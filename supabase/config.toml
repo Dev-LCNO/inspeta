@@ -1,0 +1,18 @@
+# Configuração do projeto para a Supabase CLI (supabase link / db push / functions deploy).
+# O project-ref NÃO fica aqui: o workflow usa a variável SUPABASE_PROJECT_REF do GitHub.
+project_id = "inspeta"
+
+[auth]
+# links de convite e de recuperação de senha voltam para o app (o workflow também envia isso ao projeto)
+site_url = "http://localhost:54321/"
+minimum_password_length = 8
+
+# As duas funções conferem a autenticação por conta própria (a api valida o token no Supabase Auth;
+# a jobs exige o cabeçalho x-cron-secret), então a verificação automática de JWT fica desligada.
+[functions.api]
+verify_jwt = false
+entrypoint = "./functions/api/index.js"
+
+[functions.jobs]
+verify_jwt = false
+entrypoint = "./functions/jobs/index.js"

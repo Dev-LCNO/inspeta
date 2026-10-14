@@ -3,6 +3,7 @@
 import { gerarRelatorioPdf } from "../app/src/pdf";
 import { criarServidor } from "../app/src/data/nucleo";
 import type { EmailSaida, Organizacao } from "../app/src/data/types";
+import { provisionar } from "./provisionar";
 import { ambientePg, anexosNoBanco, type Sql } from "./repo";
 
 export interface Mensagem { para: string; assunto: string; texto: string; html: string; anexos?: { nome: string; base64: string }[] }
@@ -85,4 +86,27 @@ export async function rodarAgendas(sql: Sql): Promise<number> {
   let n = 0;
   for (const o of orgs) n += await criarServidor(ambientePg(sql, o, { urlApp: "", anexos: anexosNoBanco(sql) })).rodarAgenda();
   return n;
+}
+
+export interface PedidoOrg { nome?: string; fuso_horario?: string; dono_nome?: string; dono_email?: string; demo?: boolean }
+/** Cria uma organização e convida o dono pelo Supabase Auth (POST /auth/v1/invite com a service role). */
+export async function criarOrganizacao(sql: Sql, p: PedidoOrg, op: { authUrl: string; serviceKey: string; urlApp: string; fetch?: typeof fetch }):
+  Promise<{ status: number; corpo: Record<string, unknown> }> {
+  const email = (p.dono_email ?? "").trim().toLowerCase();
+  if (!p.nome?.trim() || !p.dono_nome?.trim() || !/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) return { status: 400, corpo: { erro: "Informe nome, dono_nome e dono_email válidos." } };
+  const ja = await sql`select 1 from registros where colecao = 'membros' and lower(dados->>'email') = ${email} limit 1`;
+  if (ja.length) return { status: 409, corpo: { erro: "Esse e-mail já pertence a uma organização." } };
+  const org = await provisionar(sql, { nome: p.nome.trim(), fuso_horario: p.fuso_horario || "America/Sao_Paulo", dono: { nome: p.dono_nome.trim(), email }, demo: !!p.demo }, op.urlApp);
+  const r = await (op.fetch ?? fetch)(`${op.authUrl}/invite${op.urlApp ? `?redirect_to=${encodeURIComponent(op.urlApp)}` : ""}`, {
+    method: "POST",
+    headers: { apikey: op.serviceKey, Authorization: `Bearer ${op.serviceKey}`, "Content-Type": "application/json" },
+    body: JSON.stringify({ email, data: {} }),
+  });
+  return { status: 200, corpo: { org: org.id, convite: r.ok ? "enviado" : `falhou (${r.status}) — o dono pode usar "Esqueci minha senha" na tela de entrar` } };
+}
+
+/** Guarda o endereço da função e o segredo para o pg_cron (supabase/migrations/*_cron.sql). */
+export async function configurarAgendador(sql: Sql, urlJobs: string, segredo: string): Promise<void> {
+  await sql`insert into interno.config (nome, valor) values ('url_jobs', ${urlJobs}), ('cron_secret', ${segredo})
+            on conflict (nome) do update set valor = excluded.valor`;
 }

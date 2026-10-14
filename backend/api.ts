@@ -20,6 +20,8 @@ export interface ConfigApi {
   serviceKey?: string;
   urlApp: string;
   anexos: Anexos;
+  /** true em produção (RESEND_API_KEY definida): e-mails vão para a fila de envio de verdade */
+  enviaEmails?: boolean;
   /** Origens que podem chamar a API (CORS). Vazio = qualquer uma (só para desenvolvimento). */
   origens?: string[];
   agora?: () => number;
@@ -92,8 +94,8 @@ export function criarApi(cfg: ConfigApi): (req: Request) => Promise<Response> {
   async function orgDoEmail(email: string): Promise<Organizacao> {
     const r = await cfg.sql<{ id: string; nome: string; fuso_horario: string }>`
       select o.id, o.nome, o.fuso_horario from registros r join orgs o on o.id = r.org_id
-      where r.colecao = 'membros' and lower(r.dados->>'email') = ${email} and coalesce((r.dados->>'ativo')::boolean, true)
-      order by o.criado_em limit 1`;
+      where r.colecao = 'membros' and lower(r.dados->>'email') = ${email}
+      order by coalesce((r.dados->>'ativo')::boolean, true) desc, o.criado_em limit 1`;
     if (!r[0]) throw new ErroHttp(403, "Este e-mail não tem acesso a nenhuma conta do Inspeta. Peça um convite ao administrador.");
     return { id: r[0].id, nome: r[0].nome, fuso_horario: r[0].fuso_horario };
   }
@@ -110,9 +112,9 @@ export function criarApi(cfg: ConfigApi): (req: Request) => Promise<Response> {
   async function convidar(email: string): Promise<void> {
     if (!cfg.serviceKey) return;
     // Supabase Auth manda o e-mail de convite (definir senha). Se a pessoa já tem conta, segue normalmente.
-    const r = await fetch(`${cfg.authUrl}/invite`, {
+    const r = await fetch(`${cfg.authUrl}/invite${cfg.urlApp ? `?redirect_to=${encodeURIComponent(cfg.urlApp)}` : ""}`, {
       method: "POST", headers: { Authorization: `Bearer ${cfg.serviceKey}`, apikey: cfg.serviceKey, "Content-Type": "application/json" },
-      body: JSON.stringify({ email, data: {}, redirect_to: cfg.urlApp }),
+      body: JSON.stringify({ email, data: {} }),
     });
     if (!r.ok && r.status !== 422) console.error("convite falhou", r.status);
   }
@@ -146,7 +148,7 @@ export function criarApi(cfg: ConfigApi): (req: Request) => Promise<Response> {
       // ---- público: link do plano de ação ----
       if (PUBLICOS.has(metodo)) {
         const org = await orgDoToken(String(args[0] ?? ""));
-        const { servidor, avisos } = servidorDaOrg(cfg.sql, org, { urlApp: cfg.urlApp, anexos: cfg.anexos });
+        const { servidor, avisos } = servidorDaOrg(cfg.sql, org, { urlApp: cfg.urlApp, anexos: cfg.anexos, enviaEmails: cfg.enviaEmails });
         const fn = servidor[metodo as "planoPorToken"] as (...a: unknown[]) => Promise<unknown>;
         const valor = await fn(...args);
         return json(req, 200, { ok: true, valor, avisos: [...avisos] });
@@ -157,7 +159,7 @@ export function criarApi(cfg: ConfigApi): (req: Request) => Promise<Response> {
       if (!auth.startsWith("Bearer ")) throw new ErroHttp(401, "Entre para continuar.");
       const email = await usuarioDoToken(auth.slice(7));
       const org = await orgDoEmail(email);
-      const { servidor, avisos } = servidorDaOrg(cfg.sql, org, { urlApp: cfg.urlApp, anexos: cfg.anexos });
+      const { servidor, avisos } = servidorDaOrg(cfg.sql, org, { urlApp: cfg.urlApp, anexos: cfg.anexos, enviaEmails: cfg.enviaEmails });
       const quem = await servidor._membroPorEmail(email);
       if (!quem || !quem.ativo) throw new ErroHttp(403, "Este acesso foi desativado. Fale com o administrador da conta.");
 
@@ -186,8 +188,9 @@ export function criarApi(cfg: ConfigApi): (req: Request) => Promise<Response> {
     } catch (e) {
       if (e instanceof ErroHttp) return json(req, e.status, { ok: false, erro: e.message });
       const msg = e instanceof Error ? e.message : String(e);
-      // erro de regra (mensagem para a pessoa) vs. erro inesperado (não vaza detalhe do banco)
-      const interno = /syntax|relation|column|violates|connection|ECONN|timeout/i.test(msg);
+      // erro de regra é um Error simples com mensagem para a pessoa; qualquer outro (banco, TypeError...) é interno
+      // e não vaza detalhe para o cliente
+      const interno = !(e instanceof Error && e.constructor === Error);
       if (interno) console.error(metodo, e);
       return json(req, interno ? 500 : 400, { ok: false, erro: interno ? "Erro no servidor. Tente de novo em instantes." : msg });
     }

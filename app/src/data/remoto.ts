@@ -18,9 +18,10 @@ const ler = <T,>(k: string): T | null => { try { const v = localStorage.getItem(
 const gravar = (k: string, v: unknown) => { try { localStorage.setItem(k, JSON.stringify(v)); } catch { /* sem armazenamento */ } };
 const apagar = (k: string) => { try { localStorage.removeItem(k); } catch { /* idem */ } };
 
+/** Tokens guardados (durante o login ainda sem membro_id). */
 function sessaoValida(): Sessao | null {
   const s = ler<Sessao>(SESSAO);
-  return s && typeof s === "object" && s.access_token && s.membro_id ? s : null;
+  return s && typeof s === "object" && s.access_token ? s : null;
 }
 
 export function criarServidorRemoto(api: string): ServerApi {
@@ -101,7 +102,7 @@ export function criarServidorRemoto(api: string): ServerApi {
     },
     sessao(): Membro | null {
       const s = sessaoValida();
-      if (!s) return null;
+      if (!s?.membro_id) return null;
       const m = (ler<Membro[]>(MEMBROS) ?? []).find((x) => x.id === s.membro_id);
       return m && m.ativo ? m : null;
     },
@@ -109,6 +110,38 @@ export function criarServidorRemoto(api: string): ServerApi {
       const s = sessaoValida();
       if (s) void fetch(`${AUTH}/logout`, { method: "POST", headers: { apikey: ANON, Authorization: `Bearer ${s.access_token}` } }).catch(() => undefined);
       encerrar();
+    },
+    async recuperarSenha(email: string): Promise<void> {
+      try {
+        await fetch(`${AUTH}/recover?redirect_to=${encodeURIComponent(location.origin + location.pathname)}`, { method: "POST", headers: { apikey: ANON, "Content-Type": "application/json" },
+          body: JSON.stringify({ email: email.trim() }) });
+      } catch { throw new OfflineError(); }
+    },
+    async definirSenha(senha: string): Promise<Membro> {
+      if (senha.length < 8) throw new Error("Use pelo menos 8 caracteres.");
+      const s = sessaoValida();
+      if (!s) throw new Error("O link expirou. Peça um novo na tela de entrar.");
+      let r: Response;
+      try {
+        r = await fetch(`${AUTH}/user`, { method: "PUT", headers: { apikey: ANON, Authorization: `Bearer ${s.access_token}`, "Content-Type": "application/json" }, body: JSON.stringify({ password: senha }) });
+      } catch { throw new OfflineError(); }
+      if (!r.ok) {
+        const j = (await r.json().catch(() => ({}))) as { msg?: string };
+        throw new Error(/weak|short|least/i.test(j.msg ?? "") ? "Senha fraca: use letras e números, com pelo menos 8 caracteres." : "Não foi possível salvar a senha. Peça um novo link.");
+      }
+      const eu = (await rpc("eu", [])) as { membro: Membro; membros: Membro[]; org: Organizacao };
+      gravar(ORG, eu.org); gravar(MEMBROS, eu.membros); gravar(SESSAO, { ...sessaoValida()!, membro_id: eu.membro.id });
+      emitChange("sessao");
+      return eu.membro;
+    },
+    capturarRetornoAuth(): "recovery" | "invite" | "signup" | null {
+      const h = location.hash.replace(/^#/, "");
+      if (!h.includes("access_token=")) return null;
+      const p = new URLSearchParams(h);
+      const tipo = p.get("type");
+      gravar(SESSAO, { access_token: p.get("access_token") ?? "", refresh_token: p.get("refresh_token") ?? "", expira: Date.now() + Number(p.get("expires_in") ?? 3600) * 1000, membro_id: "" });
+      history.replaceState(null, "", location.pathname + "#/definir-senha");
+      return tipo === "invite" || tipo === "signup" ? tipo : "recovery";
     },
     org(): Organizacao { return ler<Organizacao>(ORG) ?? { id: "", nome: "", fuso_horario: "America/Sao_Paulo" }; },
     membros(): Membro[] { return ler<Membro[]>(MEMBROS) ?? []; },

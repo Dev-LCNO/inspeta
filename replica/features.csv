@@ -1,5 +1,5 @@
 feature,area,priority,original,clone,notes
-Login e-mail/senha,auth,must,yes,partial,S01 M01 | S01 pronto; autenticação falsa até o /replica-backend (Supabase Auth)
+Login e-mail/senha,auth,must,yes,yes,"S01 M01 | Supabase Auth (cadastro fechado, convite, esqueci a senha → #/definir-senha); testado contra API local"
 Multi-organização (tenant),auth,must,yes,partial,inferido | org_id em todo o modelo e no RLS; demo com uma org
 Funções (cargos com ações permitidas),acesso,should,yes,yes,S31 matriz ações × funções; Administrador fixo; não exclui função em uso
 Permissões por usuário (formulários/inspeções/avaliados),acesso,must,yes,yes,"S30 por pessoa e equipe; servidor aplica no pacote, no envio e na listagem"
@@ -46,7 +46,7 @@ Detalhe da inspeção,inspecao,must,yes,yes,S12 | S12
 Log de edições (export Excel),inspecao,should,yes,partial,"exporta CSV, não .xlsx"
 Relatório PDF configurável,relatorios,must,yes,yes,"S16: cor, logo, 1 ou 2 colunas, fotos junto/no fim/sem, só exceções, nota opcional, rodapé; PDF de exemplo antes de publicar"
 Relatório de não conformidades,relatorios,must,yes,yes,seção no PDF
-Envio automático de relatório por e-mail,relatorios,must,yes,partial,fila idempotente + caixa de saída simulada; envio real entra com o backend (Resend)
+Envio automático de relatório por e-mail,relatorios,must,yes,yes,"fila no banco; função jobs envia pelo Resend com PDF anexado, registra erro, apaga o link do plano após o envio — testado (jobs.test.ts); envio real depende da chave do usuário"
 Modelos de plano de ação,planos,must,yes,yes,S25 | S25 reaproveita o editor de questões
 Disparo automático de plano na NC,planos,must,yes,yes,job pós-finalização idempotente — testado
 Link público para responder plano,planos,must,yes,yes,S26 | S26 sem login; banco guarda só o hash do token — testado

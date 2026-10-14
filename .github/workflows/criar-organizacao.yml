@@ -1,0 +1,46 @@
+# Cria uma organização (cliente) e manda o convite para o dono definir a senha.
+# Rodar em: Actions → "Criar organização" → Run workflow.
+name: Criar organização
+on:
+  workflow_dispatch:
+    inputs:
+      nome:
+        description: Nome da organização
+        required: true
+      dono_nome:
+        description: Nome de quem administra
+        required: true
+      dono_email:
+        description: E-mail de quem administra (recebe o convite)
+        required: true
+      fuso_horario:
+        description: Fuso horário (IANA)
+        default: America/Sao_Paulo
+      demo:
+        description: Já começar com os dados de exemplo
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+
+jobs:
+  criar:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Criar
+        env:
+          REF: ${{ vars.SUPABASE_PROJECT_REF }}
+          CRON_SECRET: ${{ secrets.CRON_SECRET }}
+          NOME: ${{ inputs.nome }}
+          DONO_NOME: ${{ inputs.dono_nome }}
+          DONO_EMAIL: ${{ inputs.dono_email }}
+          FUSO: ${{ inputs.fuso_horario }}
+          DEMO: ${{ inputs.demo }}
+        run: |
+          echo "::add-mask::$DONO_EMAIL"
+          corpo=$(jq -n --arg n "$NOME" --arg dn "$DONO_NOME" --arg de "$DONO_EMAIL" --arg f "$FUSO" --argjson d "$DEMO" \
+            '{acao: "provisionar", nome: $n, dono_nome: $dn, dono_email: $de, fuso_horario: $f, demo: $d}')
+          curl -sS -w '\nHTTP %{http_code}\n' -X POST "https://$REF.supabase.co/functions/v1/jobs" \
+            -H "x-cron-secret: $CRON_SECRET" -H "Content-Type: application/json" -d "$corpo" | tee /tmp/r
+          grep -q "HTTP 200" /tmp/r

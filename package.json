@@ -1,0 +1,20 @@
+{
+  "name": "inspeta",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "build": "./scripts/build.sh",
+    "build:funcoes": "./scripts/build-funcoes.sh",
+    "test": "./scripts/test.sh",
+    "test:backend": "./scripts/test-backend.sh"
+  },
+  "dependencies": {
+    "pdf-lib": "1.17.1",
+    "react": "19.2.8",
+    "react-dom": "19.2.8"
+  },
+  "devDependencies": {
+    "playwright": "1.56.0",
+    "typescript": "6.0.3"
+  }
+}

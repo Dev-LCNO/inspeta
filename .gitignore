@@ -1,3 +1,9 @@
 node_modules
 app/dist
+app/dist-*
 replica/clone-screens/*.tmp
+.env
+.env.*
+!.env.example
+supabase/.temp
+supabase/.branches

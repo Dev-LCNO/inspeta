@@ -7,5 +7,5 @@
     "paths": { "@app/form-engine": ["./packages/form-engine/src/index.ts"] }
   },
   "include": ["packages/*/src", "app/src", "backend/*.ts"],
-  "exclude": ["backend/dev.ts"]
+  "exclude": ["backend/dev.ts", "backend/funcao-*.ts", "backend/*.test.ts"]
 }

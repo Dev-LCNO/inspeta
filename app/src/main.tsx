@@ -1,6 +1,6 @@
 import { StrictMode, useEffect } from "react";
 import { createRoot } from "react-dom/client";
-import { pode } from "./data/server";
+import { pode, server } from "./data/server";
 import type { Acao, Membro } from "./data/types";
 import { FieldApp } from "./field/FieldApp";
 import { useSessao } from "./session";
@@ -16,6 +16,7 @@ import { ImportarFormulario } from "./web/ImportarFormulario";
 import { InspecaoDetalhe } from "./web/InspecaoDetalhe";
 import { Inspecoes } from "./web/Inspecoes";
 import { Login } from "./web/Login";
+import { DefinirSenha } from "./web/DefinirSenha";
 import { PlanoModeloEditor } from "./web/PlanoModeloEditor";
 import { PlanoPublico } from "./web/PlanoPublico";
 import { Painel } from "./web/Painel";
@@ -40,12 +41,16 @@ function Guard({ me, acao, children }: { me: Membro; acao: Acao; children: JSX.E
   return pode(me, acao) ? children : <SemPermissao />;
 }
 
+// link do e-mail de convite/redefinição volta com tokens no endereço: guarda antes do roteador ler
+const retornoAuth = server.capturarRetornoAuth();
+
 function App() {
   const r = useRoute();
   const me = useSessao();
   const p = r.parts;
 
   if (p[0] === "p" && p[1]) return <PlanoPublico token={p[1]} />; // S26: sem login
+  if (p[0] === "definir-senha") return <DefinirSenha motivo={retornoAuth} />; // link do e-mail (convite ou redefinição)
   if (!me) return p[0] === "entrar" ? <Login /> : <Redirect to="/entrar" />;
   if (p[0] === "entrar" || !p.length) return <Redirect to={ehGestor(me) ? "/web/inspecoes" : "/campo"} />;
   if (p[0] === "campo") return <FieldApp me={me} />;

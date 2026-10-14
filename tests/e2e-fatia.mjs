@@ -260,6 +260,8 @@ await p.goto(BASE + "#/web/formularios");
 await p.getByText("Você não tem acesso a esta área").waitFor();
 passo("aplicadora bloqueada no editor de formulários");
 
-console.log(erros.length ? "\nERROS NO CONSOLE:\n" + erros.join("\n") : "\nconsole sem erros");
+// respostas 4xx esperadas (ex.: link antigo do plano) aparecem como "Failed to load resource" no modo backend
+const reais = erros.filter((e) => !/Failed to load resource/.test(e));
+console.log(reais.length ? "\nERROS NO CONSOLE:\n" + reais.join("\n") : "\nconsole sem erros");
 await browser.close();
-if (erros.length) process.exit(1);
+if (reais.length) process.exit(1);

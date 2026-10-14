@@ -27,7 +27,8 @@ export async function authLocal(req: Request, caminho: string): Promise<Response
   const corpo = req.method === "POST" ? ((await req.json().catch(() => ({}))) as Record<string, string>) : {};
   if (caminho === "token" && url.searchParams.get("grant_type") === "password") {
     const u = usuarios.get(String(corpo.email ?? "").toLowerCase());
-    if (!u || u.senha !== corpo.password) return json(400, { error: "invalid_grant", error_description: "Invalid login credentials" });
+    // local imita a demonstração: qualquer senha com 4+ caracteres para quem tem usuário (nunca usar fora do desenvolvimento)
+    if (!u || String(corpo.password ?? "").length < 4) return json(400, { error: "invalid_grant", error_description: "Invalid login credentials" });
     return json(200, emitir(u.email, duracaoLocal.s));
   }
   if (caminho === "token" && url.searchParams.get("grant_type") === "refresh_token") {

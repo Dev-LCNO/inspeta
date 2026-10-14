@@ -145,3 +145,14 @@ Testes: `app/test/camposAvaliado.test.ts` (3), `tests/e2e-relatorio.mjs` (3, lê
 - O logo é reduzido no navegador para no máx. 400 px (PNG mantém transparência) e guardado como anexo, não dentro do formulário.
 - "Só exceções" mostra não conformes, sem resposta e assinaturas; o resto vira "n questões conformes neste tópico".
 - Campo escondido por dependência tem o valor descartado ao salvar. Grafia de lista é corrigida sem diferenciar maiúsculas ("interior" → "Interior").
+
+## 2026-10-14 — backend real (Supabase)
+
+Feito: núcleo único (`nucleo.ts`) usado pelo modo demonstração e pela API; Postgres com RLS fechado; API com checagem de permissão por método; Supabase Auth (convite, recuperação, definir senha); fila de e-mails via Resend com PDF; agenda e envios pelo pg_cron; workflow de publicação e de criação de organização.
+Testes: `backend/jobs.test.ts` (6), `tests/api-seguranca.mjs` (9) e as 11 suítes ponta a ponta rodando contra a API real local, além da suíte de demonstração (39 + 111).
+Mais difícil que o previsto: o modo real expôs corridas que o falso escondia (lista antiga contada antes de recarregar, aviso da importação anterior ainda na tela) — testes ajustados para esperar o estado certo.
+Falta: limite de taxa próprio na API, validação formal por método, anexos no Storage, política de privacidade. Não testado contra um Supabase de verdade (o ambiente daqui não alcança supabase.com) — o primeiro deploy é o teste.
+
+**Decisões (revisar):**
+- Uma tabela `registros` em JSONB por organização em vez de uma tabela por entidade: as regras rodam no mesmo código do aparelho e o esquema evolui sem migração. Custo: o estado da organização é carregado inteiro por chamada — ok até alguns milhares de inspeções; depois, quebrar por coleção.
+- Cadastro público fechado; organizações nascem pelo workflow "Criar organização".
