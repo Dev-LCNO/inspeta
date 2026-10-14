@@ -4,7 +4,7 @@ import { renumerarFormulas, type FormDefinition } from "@app/form-engine";
 import { server } from "../data/server";
 import type { PlanoModelo } from "../data/types";
 import { useData } from "../ui/hooks";
-import { Badge, Button, ErrorState, PageHeader, SkeletonBlock, TextField, useToast } from "../ui/primitives";
+import { Badge, Button, ErrorState, PageHeader, SkeletonBlock, Switch, TextField, useToast } from "../ui/primitives";
 import { AbaQuestoes } from "./FormBuilder";
 
 export function PlanoModeloEditor({ id }: { id: string }) {
@@ -47,6 +47,8 @@ export function PlanoModeloEditor({ id }: { id: string }) {
             <select id="dest" className="select" value={m.destinatario} onChange={(e: { target: { value: string } }) => set({ destinatario: e.target.value as PlanoModelo["destinatario"] })}>
               <option value="avaliado">E-mail do avaliado</option><option value="fixo">Um e-mail fixo</option>
             </select></div>
+          <div style={{ gridColumn: "1 / -1" }}><Switch label="Exigir aprovação da correção" desc="Quando o responsável responde, o plano fica “em aprovação” até um gestor aceitar ou devolver com o que falta."
+            checked={!!m.exige_aprovacao} onChange={(v) => set({ exige_aprovacao: v })} /></div>
           {m.destinatario === "fixo" ? <TextField label="E-mail fixo" type="email" value={m.email_fixo ?? ""} onChange={(v) => set({ email_fixo: v })} placeholder="manutencao@empresa.com.br" /> : null}
         </div>
       </section>

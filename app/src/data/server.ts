@@ -12,7 +12,7 @@ import {
   type Avaliado, type FiltroInspecoes, type Formulario, type FormularioVersao, type ID, type Inspecao,
   type InspecaoEnvio, type InspecaoEvento, type Membro, type Organizacao, type PacoteSync, type ResultadoEnvio,
   type Acesso, type Aprovacao, type Agendamento, type Ocorrencia, type OcorrenciaPacote, type OcorrenciaSituacao, type RegraAgenda, type Equipe, type Funcao, type MembroRegistro,
-  type EmailSaida, type LinhaImportacao, type PlanoAcao, type PlanoModelo, type PlanoSituacao, type ResultadoImportacao,
+  type EmailSaida, type LinhaImportacao, type PlanoAcao, type PlanoModelo, type PlanoStatus, type PlanoSituacao, type ResultadoImportacao,
 } from "./types";
 import type { Answers } from "@app/form-engine";
 
@@ -275,10 +275,11 @@ export const server = {
     if (!f) throw new Error("Formulário não encontrado.");
     return clone(f);
   },
-  async criarFormulario(nome: string): Promise<Formulario> {
+  /** Cria um rascunho. `base` vem da importação por planilha ou de um modelo; sem ela, nasce com uma questão Sim/Não. */
+  async criarFormulario(nome: string, base?: FormDefinition): Promise<Formulario> {
     await latency();
     if (!nome.trim()) throw new Error("Dê um nome ao formulário.");
-    const def: FormDefinition = {
+    const def: FormDefinition = base ? clone(base) : {
       config: { calcular_nota: true, casas_decimais: 1, classificacoes: [
         { nome: "Ruim", cor: "rank-bad", min: 0, max: 69.99 },
         { nome: "Regular", cor: "rank-mid", min: 70, max: 84.99 },
@@ -563,6 +564,7 @@ export const server = {
       const p = s.planos.find((x) => x.token_hash === hash);
       if (!p) throw new Error("Este link não vale mais.");
       if (p.status === "finalizado") throw new Error("Este plano já foi respondido.");
+      if (p.status === "em_aprovacao") throw new Error("A resposta já foi enviada e está em análise.");
       if (!dados.nome.trim()) throw new Error("Informe seu nome.");
       for (const nc of p.questao_keys) {
         const resp = { ...(dados.respostas[nc] ?? {}) };
@@ -575,10 +577,41 @@ export const server = {
         p.respostas[nc] = resp;
       }
       p.anexos = dados.fotos.map((f) => ({ client_uuid: f.client_uuid, questao_key: f.questao_key, nc_key: f.nc_key, tipo: "foto", mime: "image/jpeg", bytes: f.bytes }));
-      p.status = "finalizado";
       p.respondido_por = dados.nome.trim();
-      p.finalizado_em = nowISO();
+      p.respondido_em = nowISO();
+      if (p.modelo_snapshot.exige_aprovacao) p.status = "em_aprovacao";
+      else { p.status = "finalizado"; p.finalizado_em = nowISO(); }
       p.updated_at = nowISO();
+    });
+  },
+  /** Gestor aceita a correção (fecha o plano) ou devolve com motivo: o plano reabre, ganha prazo novo e o responsável recebe um link novo. */
+  async decidirPlano(quem: Membro, plano_id: ID, decisao: "aprovada" | "reprovada", comentario = ""): Promise<PlanoStatus> {
+    exigir(quem, "gerenciar_planos");
+    if (decisao === "reprovada" && comentario.trim().length < 3) throw new Error("Diga o que falta na correção.");
+    await latency();
+    const token = novoToken();
+    const hash = await sha256(token);
+    return mutate("planos", (s) => {
+      const p = s.planos.find((x) => x.id === plano_id);
+      if (!p) throw new Error("Plano não encontrado.");
+      if (p.status !== "em_aprovacao") throw new Error("Este plano não está esperando aprovação.");
+      if (decisao === "aprovada") {
+        p.status = "finalizado"; p.finalizado_em = nowISO(); p.aprovado_por = quem.id;
+      } else {
+        (p.reprovacoes ??= []).push({ em: nowISO(), por: quem.id, comentario: comentario.trim(), respondido_por: p.respondido_por, respostas: clone(p.respostas) });
+        const dias = s.planosModelo.find((m) => m.id === p.modelo_id)?.prazo_dias ?? 3;
+        Object.assign(p, { status: "aberto", respostas: {}, anexos: [], respondido_por: undefined, respondido_em: null, prazo: somarDias(hojeNaOrg(), dias), token_hash: hash });
+        if (p.responsavel_email) {
+          p.ultimo_email_em = nowISO();
+          const av = s.avaliados.find((a) => a.id === p.avaliado_id)?.nome ?? "";
+          filaEmail(s, { idem_key: `plano-devolvido:${p.id}:${hash.slice(0, 16)}`, para: p.responsavel_email,
+            assunto: `Correção devolvida: ${p.modelo_snapshot.nome} — ${av}`,
+            texto: `A correção enviada não foi aceita: "${comentario.trim()}". Responda de novo até ${p.prazo.split("-").reverse().join("/")}.`,
+            link: linkPublico(token) });
+        }
+      }
+      p.updated_at = nowISO();
+      return p.status;
     });
   },
 
@@ -1143,7 +1176,7 @@ async function posFinalizacao(inspecao_id: ID): Promise<void> {
       if (s.planos.some((p) => p.inspecao_id === i.id && p.modelo_id === g.modelo.id && [...p.questao_keys].sort().join(",") === chave)) return;
       const para = g.modelo.destinatario === "fixo" ? g.modelo.email_fixo ?? null : av?.email ?? null;
       const p: PlanoAcao = {
-        id: uuid(), org_id: ORG.id, modelo_id: g.modelo.id, modelo_snapshot: { nome: g.modelo.nome, definicao: clone(g.modelo.definicao) },
+        id: uuid(), org_id: ORG.id, modelo_id: g.modelo.id, modelo_snapshot: { nome: g.modelo.nome, definicao: clone(g.modelo.definicao), exige_aprovacao: !!g.modelo.exige_aprovacao },
         inspecao_id: i.id, avaliado_id: i.avaliado_id, formulario_id: i.formulario_id, questao_keys: g.keys,
         responsavel_email: para, token_hash: tokens[n]!.h, prazo: somarDias(hojeNaOrg(), g.modelo.prazo_dias),
         status: "aberto", respostas: {}, anexos: [], finalizado_em: null, ultimo_email_em: para ? nowISO() : null,

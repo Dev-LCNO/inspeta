@@ -160,18 +160,20 @@ export interface PlanoModelo {
   prazo_dias: number;
   destinatario: "avaliado" | "fixo";
   email_fixo?: string;
+  /** a resposta do responsável passa por um gestor antes de fechar o plano */
+  exige_aprovacao?: boolean;
   created_at: ISO;
   updated_at: ISO;
 }
 
-export type PlanoStatus = "aberto" | "finalizado";
+export type PlanoStatus = "aberto" | "em_aprovacao" | "finalizado";
 export type PlanoSituacao = PlanoStatus | "em_atraso";
 
 export interface PlanoAcao {
   id: ID;
   org_id: ID;
   modelo_id: ID;
-  modelo_snapshot: Pick<PlanoModelo, "nome" | "definicao">;
+  modelo_snapshot: Pick<PlanoModelo, "nome" | "definicao" | "exige_aprovacao">;
   inspecao_id: ID;
   avaliado_id: ID;
   formulario_id: ID;
@@ -184,6 +186,10 @@ export interface PlanoAcao {
   respostas: Record<string, Answers>;
   anexos: (AnexoMeta & { nc_key: string })[];
   respondido_por?: string;
+  respondido_em?: ISO | null;
+  /** correções devolvidas: o que foi respondido e por que não foi aceito */
+  reprovacoes?: { em: ISO; por: ID; comentario: string; respondido_por?: string; respostas: Record<string, Answers> }[];
+  aprovado_por?: ID | null;
   finalizado_em: ISO | null;
   ultimo_email_em: ISO | null;
   created_at: ISO;

@@ -31,8 +31,8 @@ Documento de referência,formularios,could,yes,no,
 Captura de geolocalização,formularios,should,yes,yes,"início, fim ou ambos, com precisão; nunca trava a inspeção; link para o mapa no S12"
 Preenchimento sequencial,formularios,could,yes,yes,M11 | M11 'Aplicar de novo'
 Questões pré-configuradas (biblioteca),formularios,could,yes,no,S19
-Importar formulário via Excel,formularios,should,yes,no,S20
-Modelos de questionário,formularios,should,yes,no,
+Importar formulário via Excel,formularios,should,yes,yes,"S20: modelo .csv, lê .xlsx/.csv, prévia por tópico, erros por linha, cria rascunho"
+Modelos de questionário,formularios,should,yes,yes,"4 modelos prontos (abertura de loja, recebimento, manipuladores, câmara fria) + copiar formulário existente"
 Vincular avaliados ao formulário,formularios,must,yes,yes,S17 | S17
 Aplicar inspeção na web,inspecao,must,yes,partial,S10 | pelo app de campo aberto no navegador; sem tela S10 própria
 App mobile offline-first,inspecao,must,yes,yes,M06 — começar como PWA | PWA; reabre sem rede — testado
@@ -54,7 +54,7 @@ Status aberto/finalizado/em atraso,planos,must,yes,yes,atraso derivado do prazo 
 Reenviar e-mail do plano,planos,should,yes,yes,gera link novo e invalida o anterior — testado
 Agrupar planos por inspeção ou por NC,planos,could,yes,yes,
 Aprovação de inspeção multi-etapa,aprovacao,should,yes,yes,S15 etapas por versão; S12 decide com motivo obrigatório ao reprovar; S32 fila e decididas; e-mail ao aprovador; ninguém aprova a própria
-Aprovação de plano de ação,aprovacao,could,yes,no,
+Aprovação de plano de ação,aprovacao,could,yes,yes,modelo exige aprovação; gestor aceita ou devolve com motivo; reabre com prazo e link novos
 Agendamento de inspeções com recorrência,agenda,should,yes,yes,"S05/S06: única, diária, semanal (dias), mensal; vários horários ou dia inteiro; término nunca/data/vezes; fuso da org; 14 dias materializados sem duplicar"
 Notificação push no horário,agenda,should,yes,partial,aviso local pelo service worker com o app aberto; Web Push com o app fechado depende do backend (VAPID)
 Inativar agendamento com justificativa,agenda,could,yes,yes,S07: só esta ou esta e as seguintes (encerra o agendamento)

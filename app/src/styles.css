@@ -410,3 +410,11 @@ fieldset.group > legend { font-weight: 600; padding: 0; margin-bottom: var(--spa
 .etapas li.reprovada .n { background: var(--c-danger-soft); color: var(--c-danger); }
 .prefill { display: flex; gap: 6px; align-items: center; font-size: var(--text-xs); color: var(--c-text-muted); background: var(--c-surface); border-radius: var(--radius-sm); padding: 4px var(--space-2); margin-bottom: var(--space-2); }
 fieldset.q[disabled] .opt, fieldset.q[disabled] .numin, fieldset.q[disabled] textarea { opacity: .75; cursor: not-allowed; }
+.dropzone { border: var(--bw-strong) dashed var(--c-border-input); background: var(--c-surface); border-radius: var(--radius-lg); padding: var(--space-8) var(--space-4); text-align: center; cursor: pointer; }
+.dropzone.on { border-color: var(--c-accent); background: var(--c-accent-soft); }
+.dropzone:focus-visible { outline: var(--bw-focus) solid var(--c-focus); outline-offset: 2px; }
+.import-previa { max-height: 420px; overflow: auto; border: 1px solid var(--c-border); border-radius: var(--radius-md); padding: var(--space-2) var(--space-4); }
+.pick { display: flex; gap: var(--space-3); align-items: flex-start; padding: var(--space-3); border: 1px solid var(--c-border); border-radius: var(--radius-md); cursor: pointer; }
+.pick.on { border-color: var(--c-accent); background: var(--c-accent-soft); }
+.pick input { width: 20px; height: 20px; margin: 2px 0 0; accent-color: var(--c-accent); flex: none; }
+.pick small { display: block; color: var(--c-text-muted); font-size: var(--text-xs); margin-top: 2px; }

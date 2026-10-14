@@ -70,9 +70,11 @@ export function PlanoPublico({ token }: { token: string }) {
           </dl>
         </section>
 
-        {plano.status === "finalizado" ? (
+        {plano.status !== "aberto" ? (
           <>
-            <Callout tone="ok">Respondido por <b>{plano.respondido_por}</b> em {fmt.dataHoraCompleta(plano.finalizado_em)}. Obrigado!</Callout>
+            {plano.status === "em_aprovacao"
+              ? <Callout tone="info" icon="stamp">Resposta enviada por <b>{plano.respondido_por}</b> em {fmt.dataHoraCompleta(plano.respondido_em)}. Agora um gestor vai conferir; se faltar algo, você recebe um novo e-mail.</Callout>
+              : <Callout tone="ok">Respondido por <b>{plano.respondido_por}</b> em {fmt.dataHoraCompleta(plano.respondido_em ?? plano.finalizado_em)}. Obrigado!</Callout>}
             {ncs.map((n) => (
               <section key={n.key} className="card stack-sm">
                 <b>{n.numero}. {n.titulo}</b>
@@ -82,6 +84,9 @@ export function PlanoPublico({ token }: { token: string }) {
           </>
         ) : (
           <>
+            {plano.reprovacoes?.length ? (
+              <Callout tone="warn" icon="repeat">A correção anterior foi devolvida: <b>“{plano.reprovacoes[plano.reprovacoes.length - 1]!.comentario}”</b>. Responda de novo, por favor.</Callout>
+            ) : null}
             <p className="muted" style={{ margin: 0 }}>A inspeção encontrou {ncs.length === 1 ? "um problema" : `${ncs.length} problemas`}. Para cada um, registre o que foi feito.</p>
             {ncs.map((n, k) => {
               const ev = pendencias[k]!.ev;

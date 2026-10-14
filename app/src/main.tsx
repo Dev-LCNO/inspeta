@@ -12,6 +12,7 @@ import { FormBuilder } from "./web/FormBuilder";
 import { Funcoes } from "./web/Funcoes";
 import { Formularios } from "./web/Formularios";
 import { ImportarAvaliados } from "./web/ImportarAvaliados";
+import { ImportarFormulario } from "./web/ImportarFormulario";
 import { InspecaoDetalhe } from "./web/InspecaoDetalhe";
 import { Inspecoes } from "./web/Inspecoes";
 import { Login } from "./web/Login";
@@ -55,6 +56,7 @@ function App() {
   if (STUBS[r.path]) page = <Stub path={r.path} />;
   else if (sec === "inspecoes" && p[2]) page = <InspecaoDetalhe me={me} id={p[2]} />;
   else if (sec === "inspecoes") page = <Inspecoes me={me} />;
+  else if (sec === "formularios" && p[2] === "importar") page = <Guard me={me} acao="gerenciar_formularios"><ImportarFormulario /></Guard>;
   else if (sec === "formularios" && p[2]) page = <Guard me={me} acao="gerenciar_formularios"><FormBuilder me={me} id={p[2]} /></Guard>;
   else if (sec === "formularios") page = <Guard me={me} acao="gerenciar_formularios"><Formularios /></Guard>;
   else if (sec === "planos" && p[2] === "modelos" && p[3]) page = <Guard me={me} acao="gerenciar_planos"><PlanoModeloEditor id={p[3]} /></Guard>;

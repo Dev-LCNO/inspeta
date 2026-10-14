@@ -1,5 +1,6 @@
 // S13 — Formulários
 import { useState } from "react";
+import { definicaoDoModelo, MODELOS, qtdQuestoes } from "../data/modelos";
 import { server } from "../data/server";
 import { fmt } from "../ui/format";
 import { useData } from "../ui/hooks";
@@ -10,6 +11,7 @@ export function Formularios() {
   const lista = useData(() => server.listarFormularios(), [], ["formularios", "inspecoes"]);
   const [novo, setNovo] = useState(false);
   const [nome, setNome] = useState("");
+  const [base, setBase] = useState("");
   const [erro, setErro] = useState<string | null>(null);
   const [criando, setCriando] = useState(false);
 
@@ -17,7 +19,9 @@ export function Formularios() {
     setCriando(true);
     setErro(null);
     try {
-      const f = await server.criarFormulario(nome);
+      const def = base.startsWith("modelo:") ? definicaoDoModelo(base.slice(7))
+        : base.startsWith("copia:") ? (await server.obterFormulario(base.slice(6))).rascunho : undefined;
+      const f = await server.criarFormulario(nome, def);
       setNovo(false);
       navigate("/web/formularios/" + f.id);
     } catch (e) {
@@ -32,7 +36,7 @@ export function Formularios() {
       <PageHeader title="Formulários" desc="Os checklists que sua equipe aplica. Edite à vontade: só vale para o campo depois de publicar."
         actions={<>
           <ButtonLink to="/web/formularios/importar" variant="secondary" icon="upload">Importar planilha</ButtonLink>
-          <Button icon="plus" onClick={() => { setNome(""); setErro(null); setNovo(true); }}>Novo formulário</Button>
+          <Button icon="plus" onClick={() => { setNome(""); setBase(""); setErro(null); setNovo(true); }}>Novo formulário</Button>
         </>} />
 
       {lista.status === "error" ? <ErrorState error={lista.error} onRetry={lista.reload} />
@@ -67,8 +71,29 @@ export function Formularios() {
 
       <Dialog open={novo} onClose={() => setNovo(false)} title="Novo formulário"
         footer={<><Button variant="secondary" onClick={() => setNovo(false)}>Cancelar</Button><Button loading={criando} onClick={criar}>Criar e editar</Button></>}>
-        <form onSubmit={(e: { preventDefault(): void }) => { e.preventDefault(); void criar(); }}>
+        <form className="stack" onSubmit={(e: { preventDefault(): void }) => { e.preventDefault(); void criar(); }}>
           <TextField label="Nome" value={nome} onChange={setNome} error={erro} help="Ex.: Abertura de loja, Recebimento de FLV, Auditoria de câmara fria" autoFocus />
+          <fieldset className="group">
+            <legend>Começar de</legend>
+            <div className="stack-sm">
+              <label className={"pick" + (base === "" ? " on" : "")}><input type="radio" name="base" checked={base === ""} onChange={() => setBase("")} />
+                <span><b>Em branco</b><small>Uma questão Sim/Não para você completar.</small></span></label>
+              {MODELOS.map((m) => (
+                <label key={m.id} className={"pick" + (base === "modelo:" + m.id ? " on" : "")}>
+                  <input type="radio" name="base" checked={base === "modelo:" + m.id} onChange={() => { setBase("modelo:" + m.id); if (!nome.trim()) setNome(m.nome); }} />
+                  <span><b>{m.nome}</b> <span className="muted num">· {qtdQuestoes(m.id)} questões</span><small>{m.descricao}</small></span></label>
+              ))}
+              {lista.data?.length ? (
+                <div className="field"><label htmlFor="copia">Ou copiar um formulário seu</label>
+                  <select id="copia" className="select" value={base.startsWith("copia:") ? base : ""}
+                    onChange={(e: { target: { value: string } }) => { setBase(e.target.value); const f = lista.data!.find((x) => "copia:" + x.id === e.target.value); if (f && !nome.trim()) setNome(f.nome + " (cópia)"); }}>
+                    <option value="">Escolha…</option>
+                    {lista.data.map((f) => <option key={f.id} value={"copia:" + f.id}>{f.nome}</option>)}
+                  </select></div>
+              ) : null}
+            </div>
+          </fieldset>
+          <button type="submit" hidden />
         </form>
       </Dialog>
     </>

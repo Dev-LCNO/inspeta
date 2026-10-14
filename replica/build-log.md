@@ -126,3 +126,12 @@ Teste: `tests/e2e-campo-extra.mjs` (7). Suíte: 31 de unidade + 95 ponta a ponta
 **Bugs graves achados pelos testes e corrigidos:**
 1. **Fórmulas quebravam ao inserir ou mover questões.** Cálculo cita questões por número (`[3] - [4]`); uma questão nova no topo deslocava tudo e o peso líquido passava a subtrair a questão errada. A publicação acusava, mas o gestor não saberia consertar. Agora o editor reescreve as referências a cada mudança; questão excluída vira `[?]` para a validação apontar, em vez de mirar outra questão em silêncio.
 2. **Inspeção parada na fila.** Finalizar enquanto o sync de abertura do app ainda rodava fazia o pedido de sync se perder; a inspeção só subia no próximo gatilho (reconectar ou tocar em sincronizar). Agora um pedido que chega durante um sync faz a passada repetir antes de terminar.
+
+### Marco 3 (formulários e planos) · 14/10/2026
+S20 importar formulário por planilha, modelos prontos + cópia de formulário, aprovação de plano de ação.
+Testes: `app/test/importarFormulario.test.ts` (5) e `tests/e2e-modelos.mjs` (7). Suíte: 36 de unidade + 102 ponta a ponta.
+
+**Decisões (revisar):**
+- A planilha usa `;` entre opções. Num CSV com `;` como separador, o Excel já põe aspas nessas células; quem escreve à mão pode usar `|`. Linhas com problema ficam de fora; problema estrutural (detectado pelo motor) bloqueia a criação.
+- Os modelos prontos são escritos no mesmo formato da planilha e passam pelo mesmo leitor — um teste garante que todos são válidos.
+- Plano devolvido: as respostas recusadas ficam guardadas no histórico do plano, o plano reabre vazio com prazo novo (hoje + prazo do modelo) e o link antigo deixa de valer.

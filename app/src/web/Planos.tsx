@@ -1,6 +1,6 @@
 // S24 — Planos de ação: histórico · S25 — Meus modelos
 import { Fragment, useEffect, useMemo, useState } from "react";
-import { server } from "../data/server";
+import { pode, server } from "../data/server";
 import type { Membro, PlanoAcao, PlanoSituacao } from "../data/types";
 import { respostaTexto } from "../pdf";
 import { fmt } from "../ui/format";
@@ -9,8 +9,9 @@ import { Icon } from "../ui/icons";
 import { Badge, Button, Callout, Dialog, EmptyState, ErrorState, PageHeader, SkeletonRows, Tabs, TextField, useToast } from "../ui/primitives";
 import { Link, navigate, useRoute, withQuery } from "../ui/router";
 
-export const SITUACAO: Record<PlanoSituacao, { tone: "acc" | "nc" | "ok"; icon: "clock" | "alert" | "check"; txt: string }> = {
+export const SITUACAO: Record<PlanoSituacao, { tone: "acc" | "nc" | "ok" | "warn"; icon: "clock" | "alert" | "check" | "stamp"; txt: string }> = {
   aberto: { tone: "acc", icon: "clock", txt: "Aberto" },
+  em_aprovacao: { tone: "warn", icon: "stamp", txt: "Em aprovação" },
   em_atraso: { tone: "nc", icon: "alert", txt: "Em atraso" },
   finalizado: { tone: "ok", icon: "check", txt: "Finalizado" },
 };
@@ -48,7 +49,7 @@ function Historico({ me }: { me: Membro }) {
   useEffect(() => { if (buscaD !== (r.query.get("q") ?? "")) setQ({ q: buscaD }); }, [buscaD]);
   const atual = lista.data?.find((p) => p.id === aberto) ?? null;
   const contagem = useMemo(() => {
-    const c = { aberto: 0, em_atraso: 0, finalizado: 0 };
+    const c = { aberto: 0, em_atraso: 0, em_aprovacao: 0, finalizado: 0 };
     for (const p of lista.data ?? []) c[p.situacao]++;
     return c;
   }, [lista.data]);
@@ -61,7 +62,7 @@ function Historico({ me }: { me: Membro }) {
             value={busca} onChange={(e: { target: { value: string } }) => setBusca(e.target.value)} /></div></div>
         <div className="field"><label htmlFor="ps">Situação</label>
           <select id="ps" className="select" value={situacao} onChange={(e: { target: { value: string } }) => setQ({ situacao: e.target.value })}>
-            <option value="">Todas</option><option value="aberto">Aberto</option><option value="em_atraso">Em atraso</option><option value="finalizado">Finalizado</option>
+            <option value="">Todas</option><option value="aberto">Aberto</option><option value="em_atraso">Em atraso</option><option value="em_aprovacao">Em aprovação</option><option value="finalizado">Finalizado</option>
           </select></div>
       </div>
       {lista.status === "error" ? <ErrorState error={lista.error} onRetry={lista.reload} />
@@ -73,7 +74,7 @@ function Historico({ me }: { me: Membro }) {
           <>
             <p className="muted" aria-live="polite" style={{ margin: "0 0 var(--space-2)" }}>
               {lista.data.length} {lista.data.length === 1 ? "plano" : "planos"}
-              {!situacao ? <> · {contagem.aberto} {contagem.aberto === 1 ? "aberto" : "abertos"} · <span style={{ color: contagem.em_atraso ? "var(--c-danger)" : undefined }}>{contagem.em_atraso} em atraso</span> · {contagem.finalizado} {contagem.finalizado === 1 ? "finalizado" : "finalizados"}</> : null}
+              {!situacao ? <> · {contagem.aberto} {contagem.aberto === 1 ? "aberto" : "abertos"} · <span style={{ color: contagem.em_atraso ? "var(--c-danger)" : undefined }}>{contagem.em_atraso} em atraso</span>{contagem.em_aprovacao ? ` · ${contagem.em_aprovacao} em aprovação` : ""} · {contagem.finalizado} {contagem.finalizado === 1 ? "finalizado" : "finalizados"}</> : null}
             </p>
             <div className="table-wrap responsive">
               <table className="table">
@@ -138,7 +139,15 @@ function PlanoDialog({ me, p, onClose }: { me: Membro; p: Linha; onClose: () => 
   return (
     <Dialog open onClose={onClose} title={`${p.modelo_snapshot.nome} — ${p.avaliado}`}
       footer={<><Link to={"/web/inspecoes/" + p.inspecao_id} className="btn secondary">Ver inspeção</Link><Button onClick={onClose}>Fechar</Button></>}>
-      <div className="row"><SituacaoBadge s={p.situacao} /><span className="muted num">Prazo {dataBR(p.prazo)}</span>{p.finalizado_em ? <span className="muted">· respondido por {p.respondido_por} em {fmt.dataHora(p.finalizado_em)}</span> : null}</div>
+      <div className="row"><SituacaoBadge s={p.situacao} /><span className="muted num">Prazo {dataBR(p.prazo)}</span>{p.respondido_em ?? p.finalizado_em ? <span className="muted">· respondido por {p.respondido_por} em {fmt.dataHora(p.respondido_em ?? p.finalizado_em)}</span> : null}</div>
+      {p.reprovacoes?.length ? (
+        <Callout tone="warn" icon="repeat">
+          <div className="stack-sm" style={{ gap: 4 }}>
+            <b>{p.reprovacoes.length === 1 ? "Uma correção foi devolvida" : `${p.reprovacoes.length} correções foram devolvidas`}</b>
+            {p.reprovacoes.map((r, k) => <span key={k} style={{ fontSize: "var(--text-sm)" }}>{fmt.dataHora(r.em)} · {server.membros().find((m) => m.id === r.por)?.nome}: “{r.comentario}”</span>)}
+          </div>
+        </Callout>
+      ) : null}
       {!ctx.data ? <div className="sk" style={{ height: 80 }} /> : p.questao_keys.map((k) => {
         const q = qs!.get(k);
         const resp = p.respostas[k];
@@ -158,7 +167,8 @@ function PlanoDialog({ me, p, onClose }: { me: Membro; p: Linha; onClose: () => 
           </section>
         );
       })}
-      {p.status !== "finalizado" ? (
+      {p.status === "em_aprovacao" && pode(me, "gerenciar_planos") ? <DecisaoPlano me={me} planoId={p.id} /> : null}
+      {p.status === "aberto" ? (
         <section className="stack-sm">
           <div className="label">Link do responsável</div>
           <p className="muted" style={{ margin: 0, fontSize: "var(--text-xs)" }}>Por segurança, o link só é mostrado quando é gerado. Gerar um novo invalida o anterior.</p>
@@ -215,5 +225,40 @@ function Modelos() {
         </form>
       </Dialog>
     </>
+  );
+}
+
+function DecisaoPlano({ me, planoId }: { me: Membro; planoId: string }) {
+  const toast = useToast();
+  const [devolver, setDevolver] = useState(false);
+  const [motivo, setMotivo] = useState("");
+  const [erro, setErro] = useState<string | null>(null);
+  const [ocupado, setOcupado] = useState(false);
+  async function decidir(d: "aprovada" | "reprovada") {
+    setOcupado(true); setErro(null);
+    try {
+      await server.decidirPlano(me, planoId, d, motivo);
+      toast({ tone: "info", text: d === "aprovada" ? "Correção aceita. Plano finalizado." : "Correção devolvida. O responsável recebeu um link novo." });
+      setDevolver(false); setMotivo("");
+    } catch (e) { setErro((e as Error).message); }
+    finally { setOcupado(false); }
+  }
+  return (
+    <section className="card flat stack-sm" style={{ padding: "var(--space-4)", borderColor: "var(--c-warning)" }} aria-label="Aprovar correção">
+      <b>A correção espera a sua análise</b>
+      <p className="muted" style={{ margin: 0, fontSize: "var(--text-sm)" }}>Confira as respostas e fotos acima. Se não estiver resolvido, devolva dizendo o que falta: o plano reabre com prazo novo.</p>
+      {devolver ? (
+        <form className="stack-sm" noValidate onSubmit={(e: { preventDefault(): void }) => { e.preventDefault(); void decidir("reprovada"); }}>
+          <TextField label="O que falta" multiline required value={motivo} onChange={setMotivo} error={erro} autoFocus placeholder="Ex.: a foto não mostra a bancada inteira" />
+          <div className="row"><Button variant="danger" type="submit" loading={ocupado}>Devolver correção</Button><Button variant="ghost" onClick={() => setDevolver(false)}>Cancelar</Button></div>
+        </form>
+      ) : (
+        <div className="row">
+          <Button icon="check" loading={ocupado} onClick={() => void decidir("aprovada")}>Aceitar correção</Button>
+          <Button variant="secondary" icon="repeat" onClick={() => { setErro(null); setDevolver(true); }}>Devolver</Button>
+        </div>
+      )}
+      {erro && !devolver ? <Callout tone="danger">{erro}</Callout> : null}
+    </section>
   );
 }
