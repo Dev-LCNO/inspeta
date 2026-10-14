@@ -7,11 +7,15 @@ import { useSessao } from "./session";
 import { EmptyState, ToastProvider } from "./ui/primitives";
 import { Link, navigate, useRoute } from "./ui/router";
 import { Avaliados } from "./web/Avaliados";
+import { CaixaSaida } from "./web/CaixaSaida";
 import { FormBuilder } from "./web/FormBuilder";
 import { Formularios } from "./web/Formularios";
 import { InspecaoDetalhe } from "./web/InspecaoDetalhe";
 import { Inspecoes } from "./web/Inspecoes";
 import { Login } from "./web/Login";
+import { PlanoModeloEditor } from "./web/PlanoModeloEditor";
+import { PlanoPublico } from "./web/PlanoPublico";
+import { Planos } from "./web/Planos";
 import { Shell } from "./web/Shell";
 import { STUBS, Stub } from "./web/Stub";
 
@@ -35,9 +39,7 @@ function App() {
   const me = useSessao();
   const p = r.parts;
 
-  if (p[0] === "p") {
-    return <main className="login"><div className="card"><EmptyState icon="target" title="Responder plano de ação" text="O link público para o responsável preencher o plano chega no marco 2." /></div></main>;
-  }
+  if (p[0] === "p" && p[1]) return <PlanoPublico token={p[1]} />; // S26: sem login
   if (!me) return p[0] === "entrar" ? <Login /> : <Redirect to="/entrar" />;
   if (p[0] === "entrar" || !p.length) return <Redirect to={ehGestor(me) ? "/web/inspecoes" : "/campo"} />;
   if (p[0] === "campo") return <FieldApp me={me} />;
@@ -50,6 +52,9 @@ function App() {
   else if (sec === "inspecoes") page = <Inspecoes me={me} />;
   else if (sec === "formularios" && p[2]) page = <Guard me={me} acao="gerenciar_formularios"><FormBuilder me={me} id={p[2]} /></Guard>;
   else if (sec === "formularios") page = <Guard me={me} acao="gerenciar_formularios"><Formularios /></Guard>;
+  else if (sec === "planos" && p[2] === "modelos" && p[3]) page = <Guard me={me} acao="gerenciar_planos"><PlanoModeloEditor id={p[3]} /></Guard>;
+  else if (sec === "planos") page = <Planos me={me} />;
+  else if (sec === "emails") page = <Guard me={me} acao="gerenciar_planos"><CaixaSaida /></Guard>;
   else if (sec === "avaliados") page = <Guard me={me} acao="gerenciar_avaliados"><Avaliados /></Guard>;
   else page = <EmptyState icon="alert" title="Página não encontrada" action={<Link to="/web/inspecoes" className="btn secondary">Ir para inspeções</Link>} />;
   return <Shell me={me}>{page}</Shell>;

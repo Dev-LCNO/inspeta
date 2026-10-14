@@ -4,12 +4,14 @@
 import { evaluateForm, validateDefinition, type DefinitionIssue, type FormDefinition, type Previous } from "@app/form-engine";
 import { emitChange, kv, serial } from "./kv";
 import { net } from "./net";
-import { AVALIADOS, FORMULARIOS, HISTORICO, MEMBROS, ORG, VERSOES } from "./seed";
+import { AVALIADOS, FORMULARIOS, HISTORICO, MEMBROS, ORG, PLANOS_MODELO, VERSOES } from "./seed";
 import {
   OfflineError,
   type Avaliado, type FiltroInspecoes, type Formulario, type FormularioVersao, type ID, type Inspecao,
   type InspecaoEnvio, type InspecaoEvento, type Membro, type Organizacao, type PacoteSync, type ResultadoEnvio,
+  type EmailSaida, type LinhaImportacao, type PlanoAcao, type PlanoModelo, type PlanoSituacao, type ResultadoImportacao,
 } from "./types";
+import type { Answers } from "@app/form-engine";
 
 interface State {
   v: 1;
@@ -19,6 +21,9 @@ interface State {
   inspecoes: Inspecao[];
   eventos: InspecaoEvento[];
   eventoSeq: number;
+  planosModelo: PlanoModelo[];
+  planos: PlanoAcao[];
+  emails: EmailSaida[];
 }
 
 const STATE_KEY = "srv:state";
@@ -30,10 +35,16 @@ const latency = () => new Promise((r) => setTimeout(r, 120 + Math.random() * 180
 
 async function load(): Promise<State> {
   const s = await kv.get<State>(STATE_KEY);
-  if (s) return s;
+  if (s) {
+    // migração de estados gravados antes do marco 2
+    s.planosModelo ??= clone(PLANOS_MODELO);
+    s.planos ??= [];
+    s.emails ??= [];
+    return s;
+  }
   const fresh: State = {
     v: 1, formularios: clone(FORMULARIOS), versoes: clone(VERSOES), avaliados: clone(AVALIADOS),
-    inspecoes: [], eventos: [], eventoSeq: 0,
+    inspecoes: [], eventos: [], eventoSeq: 0, planosModelo: clone(PLANOS_MODELO), planos: [], emails: [],
   };
   for (const h of HISTORICO) {
     const m = MEMBROS.find((x) => x.id === h.responsavel_id)!;
@@ -323,11 +334,198 @@ export const server = {
     await latency();
     if (lote.length > 20) throw new Error("Lote acima de 20 inspeções.");
     const presentes = new Set(await kv.keys("srv:anexo:"));
-    return mutate("inspecoes", (s) => lote.map((e) => {
+    const res = await mutate("inspecoes", (s) => lote.map((e) => {
       const falta = e.anexos.find((a) => !presentes.has("srv:anexo:" + a.client_uuid));
       if (falta) return { client_uuid: e.client_uuid, ok: false as const, erro: "anexo_faltando" as const, mensagem: "Foto ainda não enviada." };
       return processar(s, m, e);
     }));
+    // = job "inspecao-finalizada" (Inngest na arquitetura): planos de ação + e-mails. Idempotente.
+    for (const r of res) {
+      const e = lote.find((x) => x.client_uuid === r.client_uuid);
+      if (r.ok && e?.status === "completa") await posFinalizacao(r.id);
+    }
+    return res;
+  },
+
+
+  // ---- planos de ação: modelos ----
+  async listarPlanosModelo(): Promise<PlanoModelo[]> {
+    await latency();
+    return clone((await load()).planosModelo).sort((a, b) => a.nome.localeCompare(b.nome, "pt-BR"));
+  },
+  async obterPlanoModelo(id: ID): Promise<PlanoModelo> {
+    const m = (await load()).planosModelo.find((x) => x.id === id);
+    if (!m) throw new Error("Modelo de plano não encontrado.");
+    return clone(m);
+  },
+  criarPlanoModelo(nome: string): Promise<PlanoModelo> {
+    if (!nome.trim()) return Promise.reject(new Error("Dê um nome ao modelo."));
+    return mutate("planos", (s) => {
+      if (s.planosModelo.some((m) => m.nome.toLowerCase() === nome.trim().toLowerCase())) throw new Error("Já existe um modelo com esse nome.");
+      const m: PlanoModelo = {
+        id: uuid(), org_id: ORG.id, nome: nome.trim(), agrupamento: "por_inspecao", prazo_dias: 3, destinatario: "avaliado",
+        definicao: { config: { calcular_nota: false }, topicos: [{ key: uuid(), titulo: "Correção", questoes: [
+          { key: uuid(), titulo: "O que foi feito para corrigir?", tipo: "texto", obrigatoria: true },
+        ] }] },
+        created_at: nowISO(), updated_at: nowISO(),
+      };
+      s.planosModelo.push(m);
+      return clone(m);
+    });
+  },
+  salvarPlanoModelo(m: PlanoModelo): Promise<PlanoModelo> {
+    return mutate("planos", (s) => {
+      const i = s.planosModelo.findIndex((x) => x.id === m.id);
+      if (i < 0) throw new Error("Modelo de plano não encontrado.");
+      if (!m.nome.trim()) throw new Error("Dê um nome ao modelo.");
+      if (m.destinatario === "fixo" && !/^\S+@\S+\.\S+$/.test(m.email_fixo ?? "")) throw new Error("Informe um e-mail válido para o destinatário fixo.");
+      s.planosModelo[i] = { ...clone(m), updated_at: nowISO() };
+      return clone(s.planosModelo[i]!);
+    });
+  },
+
+  // ---- planos de ação: histórico ----
+  async listarPlanos(quem: Membro, filtro: { busca?: string; situacao?: PlanoSituacao | "" } = {}) {
+    await latency();
+    const s = await load();
+    const hoje = hojeNaOrg();
+    const busca = (filtro.busca ?? "").trim().toLowerCase();
+    return s.planos
+      .filter((p) => {
+        if (pode(quem, "gerenciar_planos")) return true;
+        const i = s.inspecoes.find((x) => x.id === p.inspecao_id);
+        return i?.responsavel_id === quem.id;
+      })
+      .map((p) => ({
+        ...clone(p),
+        situacao: situacao(p, hoje),
+        avaliado: s.avaliados.find((a) => a.id === p.avaliado_id)?.nome ?? "Avaliado removido",
+        formulario: s.formularios.find((f) => f.id === p.formulario_id)?.nome ?? "Formulário removido",
+      }))
+      .filter((p) => (!filtro.situacao || p.situacao === filtro.situacao)
+        && (!busca || [p.avaliado, p.modelo_snapshot.nome, p.responsavel_email, p.formulario].join(" ").toLowerCase().includes(busca)))
+      .sort((a, b) => b.created_at.localeCompare(a.created_at));
+  },
+  async planosDaInspecao(inspecao_id: ID) {
+    const s = await load();
+    const hoje = hojeNaOrg();
+    return s.planos.filter((p) => p.inspecao_id === inspecao_id).map((p) => ({ ...clone(p), situacao: situacao(p, hoje) }));
+  },
+  /** Gera um link novo (o anterior deixa de valer) e, se pedido, reenvia o e-mail. */
+  async novoLinkPlano(plano_id: ID, quem: Membro, reenviarPara?: string): Promise<{ link: string }> {
+    if (!pode(quem, "gerenciar_planos")) throw new Error("Sem permissão.");
+    await latency();
+    const token = novoToken();
+    const hash = await sha256(token);
+    const link = linkPublico(token);
+    await mutate("planos", (s) => {
+      const p = s.planos.find((x) => x.id === plano_id);
+      if (!p) throw new Error("Plano não encontrado.");
+      p.token_hash = hash;
+      if (reenviarPara) {
+        if (!/^\S+@\S+\.\S+$/.test(reenviarPara)) throw new Error("E-mail inválido.");
+        p.responsavel_email = reenviarPara;
+        p.ultimo_email_em = nowISO();
+        filaEmail(s, emailPlano(s, p, link, hash));
+      }
+      p.updated_at = nowISO();
+    });
+    return { link };
+  },
+
+  // ---- planos de ação: página pública (sem login, só com o token) ----
+  async planoPorToken(token: string) {
+    await latency();
+    const hash = await sha256(token);
+    const s = await load();
+    const p = s.planos.find((x) => x.token_hash === hash);
+    if (!p) throw new Error("Este link não vale mais. Ele pode ter sido substituído por um mais novo; confira o último e-mail recebido.");
+    const i = s.inspecoes.find((x) => x.id === p.inspecao_id)!;
+    const v = s.versoes.find((x) => x.id === i.formulario_versao_id)!;
+    const nc = p.questao_keys.map((k) => {
+      let numero = 0, q = null as null | (typeof v.definicao.topicos)[number]["questoes"][number];
+      for (const t of v.definicao.topicos) for (const x of t.questoes) { numero++; if (x.key === k) { q = x; break; } if (q) break; }
+      return { key: k, numero, titulo: q?.titulo ?? "Questão", resposta: i.respostas[k], questao: q, reincidente: !!i.resultado.questoes[k]?.reincidente };
+    });
+    return {
+      plano: { ...clone(p), situacao: situacao(p, hojeNaOrg()) },
+      org: ORG,
+      avaliado: s.avaliados.find((a) => a.id === p.avaliado_id)?.nome ?? "",
+      formulario: s.formularios.find((f) => f.id === p.formulario_id)?.nome ?? "",
+      inspecao: { finalizada_em: i.finalizada_em, nota_pct: i.nota_pct, classificacao: i.classificacao, responsavel: MEMBROS.find((m) => m.id === i.responsavel_id)?.nome ?? "" },
+      ncs: nc,
+    };
+  },
+  async responderPlano(token: string, dados: { respostas: Record<string, Answers>; fotos: { client_uuid: string; nc_key: string; questao_key: string; dataUrl: string; bytes: number }[]; nome: string }): Promise<void> {
+    await latency();
+    const hash = await sha256(token);
+    for (const f of dados.fotos) await kv.set("srv:anexo:" + f.client_uuid, f.dataUrl);
+    await mutate("planos", (s) => {
+      const p = s.planos.find((x) => x.token_hash === hash);
+      if (!p) throw new Error("Este link não vale mais.");
+      if (p.status === "finalizado") throw new Error("Este plano já foi respondido.");
+      if (!dados.nome.trim()) throw new Error("Informe seu nome.");
+      for (const nc of p.questao_keys) {
+        const resp = { ...(dados.respostas[nc] ?? {}) };
+        for (const f of dados.fotos.filter((x) => x.nc_key === nc)) {
+          const a = (resp[f.questao_key] ??= {});
+          a.fotos = (a.fotos ?? 0) + 1;
+        }
+        const ev = evaluateForm(p.modelo_snapshot.definicao, resp);
+        if (ev.pendentes.length) throw new Error("Ainda há perguntas obrigatórias sem resposta.");
+        p.respostas[nc] = resp;
+      }
+      p.anexos = dados.fotos.map((f) => ({ client_uuid: f.client_uuid, questao_key: f.questao_key, nc_key: f.nc_key, tipo: "foto", mime: "image/jpeg", bytes: f.bytes }));
+      p.status = "finalizado";
+      p.respondido_por = dados.nome.trim();
+      p.finalizado_em = nowISO();
+      p.updated_at = nowISO();
+    });
+  },
+
+  // ---- e-mails (simulados: a caixa de saída mostra o que o Resend enviaria) ----
+  async caixaDeSaida(): Promise<EmailSaida[]> {
+    await latency();
+    return clone((await load()).emails).sort((a, b) => b.criado_em.localeCompare(a.criado_em));
+  },
+
+  // ---- importação de avaliados ----
+  async importarAvaliados(linhas: LinhaImportacao[], opts: { simular?: boolean } = {}): Promise<ResultadoImportacao> {
+    await latency();
+    const aplicar = (s: State): ResultadoImportacao => {
+      const r: ResultadoImportacao = { novos: 0, atualizados: 0, erros: [] };
+      const codigosNoArquivo = new Map<string, number>();
+      linhas.forEach((l, k) => {
+        const n = k + 2; // linha 1 = cabeçalho
+        const nome = (l.nome ?? "").trim();
+        const codigo = (l.codigo_externo ?? "").trim() || undefined;
+        if (!nome) { r.erros.push({ linha: n, motivo: "sem nome" }); return; }
+        if (l.email && !/^\S+@\S+\.\S+$/.test(l.email.trim())) { r.erros.push({ linha: n, motivo: `e-mail inválido: ${l.email}` }); return; }
+        if (codigo) {
+          if (codigosNoArquivo.has(codigo)) { r.erros.push({ linha: n, motivo: `código ${codigo} repetido (já está na linha ${codigosNoArquivo.get(codigo)})` }); return; }
+          codigosNoArquivo.set(codigo, n);
+        }
+        const existente = codigo
+          ? s.avaliados.find((a) => a.codigo_externo === codigo)
+          : s.avaliados.find((a) => !a.codigo_externo && a.nome.toLowerCase() === nome.toLowerCase());
+        const dados = {
+          nome, codigo_externo: codigo,
+          documento: l.documento?.trim() || undefined, email: l.email?.trim() || undefined,
+          telefone: l.telefone?.trim() || undefined, endereco: l.endereco?.trim() || undefined,
+        };
+        if (existente) {
+          for (const [k2, v2] of Object.entries(dados)) if (v2 !== undefined) (existente as unknown as Record<string, unknown>)[k2] = v2;
+          existente.updated_at = nowISO();
+          r.atualizados++;
+        } else {
+          s.avaliados.push({ ...dados, id: uuid(), org_id: ORG.id, ativo: true, created_at: nowISO(), updated_at: nowISO() });
+          r.novos++;
+        }
+      });
+      return r;
+    };
+    if (opts.simular) return aplicar(clone(await load()));
+    return mutate("avaliados", aplicar);
   },
 
   /** Só para testes/demonstração: volta ao estado inicial. */
@@ -339,3 +537,100 @@ export const server = {
 };
 
 export type ServerApi = typeof server;
+
+// ---------------------------------------------------------------------------
+// planos de ação: job pós-finalização e utilitários
+// ---------------------------------------------------------------------------
+
+function hojeNaOrg(): string {
+  return new Intl.DateTimeFormat("en-CA", { timeZone: ORG.fuso_horario }).format(new Date()); // yyyy-mm-dd
+}
+function somarDias(iso: string, dias: number): string {
+  const d = new Date(iso + "T12:00:00Z");
+  d.setUTCDate(d.getUTCDate() + dias);
+  return d.toISOString().slice(0, 10);
+}
+/** "em atraso" é derivado (= view planos_acao_situacao do schema): aberto e com prazo vencido. */
+function situacao(p: PlanoAcao, hoje: string): PlanoSituacao {
+  return p.status === "aberto" && p.prazo < hoje ? "em_atraso" : p.status;
+}
+function novoToken(): string {
+  const b = crypto.getRandomValues(new Uint8Array(24));
+  return Array.from(b, (x) => x.toString(16).padStart(2, "0")).join("");
+}
+async function sha256(t: string): Promise<string> {
+  const d = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(t));
+  return Array.from(new Uint8Array(d), (x) => x.toString(16).padStart(2, "0")).join("");
+}
+function linkPublico(token: string): string {
+  return `${location.origin}${location.pathname}#/p/${token}`;
+}
+function filaEmail(s: State, e: Omit<EmailSaida, "id" | "criado_em" | "status">): void {
+  if (s.emails.some((x) => x.idem_key === e.idem_key)) return; // idem_key único (= emails_saida no schema)
+  s.emails.push({ ...e, id: uuid(), criado_em: nowISO(), status: e.para ? "enviado" : "sem_destinatario" });
+}
+function emailPlano(s: State, p: PlanoAcao, link: string, hash: string): Omit<EmailSaida, "id" | "criado_em" | "status"> {
+  const av = s.avaliados.find((a) => a.id === p.avaliado_id)?.nome ?? "";
+  const prazo = p.prazo.split("-").reverse().join("/");
+  return {
+    idem_key: `plano:${p.id}:${hash.slice(0, 16)}`,
+    para: p.responsavel_email ?? "",
+    assunto: `Plano de ação: ${p.modelo_snapshot.nome} — ${av}`,
+    texto: `A inspeção em ${av} encontrou ${p.questao_keys.length} ${p.questao_keys.length === 1 ? "não conformidade" : "não conformidades"} que precisam de correção até ${prazo}.\nAbra o link para registrar o que foi feito. Não precisa de senha.`,
+    link,
+  };
+}
+
+/** Idempotente: rodar duas vezes não cria plano nem e-mail repetido. */
+async function posFinalizacao(inspecao_id: ID): Promise<void> {
+  const s0 = await load();
+  const i = s0.inspecoes.find((x) => x.id === inspecao_id);
+  if (!i || i.status === "rascunho") return;
+  const v = s0.versoes.find((x) => x.id === i.formulario_versao_id)!;
+  const qByKey = new Map(v.definicao.topicos.flatMap((t) => t.questoes).map((q) => [q.key, q]));
+
+  // grupos (modelo → NCs) conforme o agrupamento do modelo
+  const grupos: { modelo: PlanoModelo; keys: string[] }[] = [];
+  for (const k of i.resultado.nao_conformidades) {
+    const mid = qByKey.get(k)?.plano_acao_modelo_id;
+    const modelo = mid ? s0.planosModelo.find((m) => m.id === mid) : undefined;
+    if (!modelo) continue;
+    const g = modelo.agrupamento === "por_inspecao" ? grupos.find((x) => x.modelo.id === modelo.id) : undefined;
+    if (g) g.keys.push(k); else grupos.push({ modelo, keys: [k] });
+  }
+  const tokens = await Promise.all(grupos.map(async () => { const t = novoToken(); return { t, h: await sha256(t) }; }));
+
+  await mutate("planos", (s) => {
+    const av = s.avaliados.find((a) => a.id === i.avaliado_id);
+    grupos.forEach((g, n) => {
+      const chave = [...g.keys].sort().join(",");
+      if (s.planos.some((p) => p.inspecao_id === i.id && p.modelo_id === g.modelo.id && [...p.questao_keys].sort().join(",") === chave)) return;
+      const para = g.modelo.destinatario === "fixo" ? g.modelo.email_fixo ?? null : av?.email ?? null;
+      const p: PlanoAcao = {
+        id: uuid(), org_id: ORG.id, modelo_id: g.modelo.id, modelo_snapshot: { nome: g.modelo.nome, definicao: clone(g.modelo.definicao) },
+        inspecao_id: i.id, avaliado_id: i.avaliado_id, formulario_id: i.formulario_id, questao_keys: g.keys,
+        responsavel_email: para, token_hash: tokens[n]!.h, prazo: somarDias(hojeNaOrg(), g.modelo.prazo_dias),
+        status: "aberto", respostas: {}, anexos: [], finalizado_em: null, ultimo_email_em: para ? nowISO() : null,
+        created_at: nowISO(), updated_at: nowISO(),
+      };
+      s.planos.push(p);
+      filaEmail(s, emailPlano(s, p, linkPublico(tokens[n]!.t), tokens[n]!.h));
+    });
+
+    // relatório por e-mail, se o formulário pedir
+    const cfg = v.definicao.config.relatorio?.emails;
+    const destinos = new Set<string>();
+    if (cfg?.avaliado && av?.email) destinos.add(av.email);
+    for (const e of cfg?.extras ?? []) if (e.trim()) destinos.add(e.trim());
+    const form = s.formularios.find((f) => f.id === i.formulario_id)?.nome ?? "";
+    for (const para of destinos) {
+      filaEmail(s, {
+        idem_key: `relatorio:${i.id}:${para}`, para,
+        assunto: `Relatório: ${form} — ${av?.nome ?? ""} — ${i.nota_pct === null ? "sem nota" : String(i.nota_pct).replace(".", ",") + "%"}`,
+        texto: `Segue o relatório da inspeção finalizada em ${new Date(i.finalizada_em ?? i.iniciada_em).toLocaleString("pt-BR", { timeZone: ORG.fuso_horario })}. ${i.qtd_nao_conformidades} não conformidade(s).`,
+        anexo: { tipo: "relatorio_pdf", inspecao_id: i.id },
+      });
+    }
+    if (destinos.size) log(s, i.id, null, "relatorio_enviado", { para: [...destinos] });
+  });
+}

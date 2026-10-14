@@ -11,10 +11,11 @@ const NAV: { to: string; label: string; icon: IconName; soon?: string }[] = [
   { to: "/web/inspecoes", label: "Inspeções", icon: "clipboard" },
   { to: "/web/formularios", label: "Formulários", icon: "file" },
   { to: "/web/avaliados", label: "Avaliados", icon: "store" },
-  { to: "/web/planos", label: "Planos de ação", icon: "target", soon: "M2" },
+  { to: "/web/planos", label: "Planos de ação", icon: "target" },
   { to: "/web/painel", label: "Painel", icon: "chart", soon: "M3" },
   { to: "/web/aprovacoes", label: "Aprovações", icon: "stamp", soon: "M3" },
   { to: "/web/workflows", label: "Workflows", icon: "flow", soon: "M4" },
+  { to: "/web/emails", label: "E-mails enviados", icon: "mail" },
 ];
 const NAV_ADMIN: { to: string; label: string; icon: IconName; soon?: string }[] = [
   { to: "/web/permissoes", label: "Permissões", icon: "shield", soon: "M2" },

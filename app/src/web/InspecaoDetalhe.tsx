@@ -7,15 +7,17 @@ import { fmt } from "../ui/format";
 import { useData } from "../ui/hooks";
 import { Icon } from "../ui/icons";
 import { Badge, Button, Callout, ErrorState, PageHeader, ScoreHero, SkeletonBlock, StatusBadge, useToast } from "../ui/primitives";
+import { Link } from "../ui/router";
+import { SituacaoBadge } from "./Planos";
 
 export function InspecaoDetalhe({ me, id }: { me: Membro; id: string }) {
   const toast = useToast();
   const [gerando, setGerando] = useState(false);
   const d = useData(async () => {
     const i = await server.obterInspecao(me, id);
-    const [v, avs, fs, ev, todas] = await Promise.all([
+    const [v, avs, fs, ev, todas, planos] = await Promise.all([
       server.obterVersao(i.formulario_versao_id), server.listarAvaliados(), server.listarFormularios(),
-      server.eventos(i.id), server.listarInspecoes(me, {}),
+      server.eventos(i.id), server.listarInspecoes(me, {}), server.planosDaInspecao(i.id),
     ]);
     const anterior = todas
       .filter((x) => x.formulario_id === i.formulario_id && x.avaliado_id === i.avaliado_id && x.id !== i.id && x.status !== "rascunho"
@@ -23,9 +25,9 @@ export function InspecaoDetalhe({ me, id }: { me: Membro; id: string }) {
       .sort((a, b) => (b.finalizada_em ?? "").localeCompare(a.finalizada_em ?? ""))[0];
     return {
       i, v, avaliado: avs.find((a) => a.id === i.avaliado_id)!, formulario: fs.find((f) => f.id === i.formulario_id)?.nome ?? "Formulário removido",
-      responsavel: server.membros().find((m) => m.id === i.responsavel_id)!, eventos: ev, anterior: anterior?.nota_pct ?? null,
+      responsavel: server.membros().find((m) => m.id === i.responsavel_id)!, eventos: ev, anterior: anterior?.nota_pct ?? null, planos,
     };
-  }, [id], ["inspecoes"]);
+  }, [id], ["inspecoes", "planos"]);
 
   const [fotos, setFotos] = useState<Record<string, string>>({});
   useEffect(() => {
@@ -39,7 +41,7 @@ export function InspecaoDetalhe({ me, id }: { me: Membro; id: string }) {
 
   if (d.status === "error") return <ErrorState error={d.error} onRetry={d.reload} />;
   if (!d.data) return <div className="stack"><SkeletonBlock h={60} /><SkeletonBlock h={140} /><SkeletonBlock h={400} /></div>;
-  const { i, v, avaliado, formulario, responsavel, eventos, anterior } = d.data;
+  const { i, v, avaliado, formulario, responsavel, eventos, anterior, planos } = d.data;
   const def = v.definicao;
   const classe = def.config.classificacoes?.find((c) => c.nome === i.classificacao) ?? null;
 
@@ -154,7 +156,12 @@ export function InspecaoDetalhe({ me, id }: { me: Membro; id: string }) {
           {i.resultado.nao_conformidades.length ? (
             <section className="card stack-sm" aria-label="Planos de ação">
               <h2 style={{ fontSize: "var(--text-base)" }}>Planos de ação</h2>
-              <p className="muted" style={{ margin: 0 }}>O disparo automático de planos para as não conformidades chega no marco 2.</p>
+              {planos.length ? planos.map((p) => (
+                <Link key={p.id} to={"/web/planos?plano=" + p.id} className="list-card" >
+                  <div className="row-between"><b>{p.modelo_snapshot.nome}</b><SituacaoBadge s={p.situacao} /></div>
+                  <span className="muted" style={{ fontSize: "var(--text-xs)" }}>{p.questao_keys.length} não conf. · prazo {p.prazo.split("-").reverse().join("/")} · {p.responsavel_email ?? "sem e-mail"}</span>
+                </Link>
+              )) : <p className="muted" style={{ margin: 0 }}>Nenhuma destas não conformidades está ligada a um modelo de plano.</p>}
             </section>
           ) : null}
           <section className="card stack-sm" aria-label="Histórico">

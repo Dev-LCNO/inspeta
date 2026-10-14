@@ -50,9 +50,9 @@ export function FormBuilder({ me, id }: { me: Membro; id: string }) {
   const aba = r.query.get("aba") ?? "questoes";
   const toast = useToast();
   const carregado = useData(async () => {
-    const [f, fs, avs] = await Promise.all([server.obterFormulario(id), server.listarFormularios(), server.listarAvaliados()]);
+    const [f, fs, avs, pms] = await Promise.all([server.obterFormulario(id), server.listarFormularios(), server.listarAvaliados(), server.listarPlanosModelo()]);
     const pub = f.versao_publicada_id ? await server.obterVersao(f.versao_publicada_id) : null;
-    return [f, fs, avs, pub] as const;
+    return [f, fs, avs, pub, pms] as const;
   }, [id]);
 
   const [form, setForm] = useState<Formulario | null>(null);
@@ -92,6 +92,7 @@ export function FormBuilder({ me, id }: { me: Membro; id: string }) {
   }, [form]);
 
   const avaliados = carregado.data?.[2] ?? [];
+  const planosModelo = (carregado.data?.[4] ?? []).map((m) => ({ id: m.id, nome: m.nome }));
 
   if (carregado.status === "error") return <ErrorState error={carregado.error} onRetry={carregado.reload} />;
   if (!form) return <div className="stack"><SkeletonBlock h={60} /><SkeletonBlock h={420} /></div>;
@@ -165,18 +166,23 @@ export function FormBuilder({ me, id }: { me: Membro; id: string }) {
         { to: `/web/formularios/${id}?aba=avaliados`, label: `Avaliados${form.avaliados_vinculados.length ? ` (${form.avaliados_vinculados.length})` : ""}`, current: aba === "avaliados", icon: "store" },
       ]} />
 
-      {aba === "questoes" ? <AbaQuestoes def={def} edit={edit} sel={sel} setSel={setSel} />
+      {aba === "questoes" ? <AbaQuestoes def={def} edit={edit} sel={sel} setSel={setSel} planos={planosModelo} />
         : aba === "configuracoes" ? <AbaConfig def={def} edit={edit} />
         : aba === "avaliados" ? <AbaAvaliados avaliados={avaliados} vinculados={form.avaliados_vinculados}
             set={(ids) => { dirty.current = true; setForm({ ...form, avaliados_vinculados: ids }); }} />
-        : <div className="card flat"><EmptyState icon="file" title="Layout do relatório chega no marco 2"
-            text="Logos de cabeçalho e rodapé, cor, uma ou duas colunas, fotos por questão ou por tópico, e quem recebe o PDF por e-mail. Hoje o relatório sai no layout padrão." /></div>}
+        : <AbaRelatorio def={def} edit={edit} />}
     </>
   );
 }
 
 // ======================= Aba Questões =======================
-function AbaQuestoes({ def, edit, sel, setSel }: { def: FormDefinition; edit: (fn: (d: FormDefinition) => void) => void; sel: string | null; setSel: (k: string | null) => void }) {
+export function AbaQuestoes({ def, edit, sel, setSel, planos, tipos }: {
+  def: FormDefinition; edit: (fn: (d: FormDefinition) => void) => void; sel: string | null; setSel: (k: string | null) => void;
+  /** modelos de plano de ação disponíveis (só no editor de formulários) */
+  planos?: { id: string; nome: string }[];
+  /** restringe os tipos de questão (ex.: o modelo de plano não usa cálculo nem assinatura) */
+  tipos?: QuestionType[];
+}) {
   const idx = useMemo(() => indexDef(def), [def]);
   const selQ = sel ? idx.questions.get(sel) : undefined;
   const choiceQs = [...idx.questions.values()].filter((x) => x.q.tipo === "escolha_simples" || x.q.tipo === "escolha_multipla");
@@ -254,6 +260,7 @@ function AbaQuestoes({ def, edit, sel, setSel }: { def: FormDefinition; edit: (f
                     {q.calculo ? <span className="mono muted" style={{ fontSize: "var(--text-xs)" }}>= {q.calculo.formula || "?"}</span> : null}
                     {q.depende_de ? <Badge tone="na" icon="flow">Depende da {idx.questions.get(q.depende_de.questao)?.numero ?? "?"}</Badge> : null}
                     {q.foto_obrigatoria ? <Badge tone="na" icon="camera">Foto</Badge> : null}
+                    {q.plano_acao_modelo_id ? <Badge tone="warn" icon="target">{planos?.find((m) => m.id === q.plano_acao_modelo_id)?.nome ?? "Plano de ação"}</Badge> : null}
                   </div>
                   {ativo ? (
                     <div className="row" style={{ marginTop: "var(--space-3)", gap: 4, marginLeft: 26 }} onClick={(e: { stopPropagation(): void }) => e.stopPropagation()}>
@@ -280,7 +287,7 @@ function AbaQuestoes({ def, edit, sel, setSel }: { def: FormDefinition; edit: (f
       </div>
 
       <aside className="panel card" aria-label="Configurações da questão">
-        {selQ ? <PainelQuestao key={selQ.q.key} q={selQ.q} numero={selQ.numero} topic={selQ.topic} idx={idx} choiceQs={choiceQs}
+        {selQ ? <PainelQuestao key={selQ.q.key} q={selQ.q} numero={selQ.numero} topic={selQ.topic} idx={idx} choiceQs={choiceQs} planos={planos} tipos={tipos}
           set={(fn) => edit((d) => { const f = findQ(d, selQ.q.key); if (f) fn(f.t.questoes[f.i]!, f.t); })} />
           : <EmptyState icon="edit" title="Escolha uma questão" text="Clique numa questão para configurar tipo, pontos, conformidade e regras." />}
       </aside>
@@ -288,9 +295,10 @@ function AbaQuestoes({ def, edit, sel, setSel }: { def: FormDefinition; edit: (f
   );
 }
 
-function PainelQuestao({ q, numero, topic, idx, choiceQs, set }: {
+function PainelQuestao({ q, numero, topic, idx, choiceQs, set, planos, tipos }: {
   q: Question; numero: number; topic: Topic; idx: ReturnType<typeof indexDef>;
   choiceQs: { q: Question; numero: number }[]; set: (fn: (q: Question, t: Topic) => void) => void;
+  planos?: { id: string; nome: string }[]; tipos?: QuestionType[];
 }) {
   const setQ = (patch: Partial<Question>) => set((x) => Object.assign(x, patch));
   const setOpt = (k: number, patch: Partial<Option>) => set((x) => Object.assign(x.opcoes![k]!, patch));
@@ -318,7 +326,7 @@ function PainelQuestao({ q, numero, topic, idx, choiceQs, set }: {
           for (const k of Object.keys(x)) delete (x as unknown as Record<string, unknown>)[k];
           Object.assign(x, n);
         })}>
-          {TIPOS.map((t) => <option key={t.v} value={t.v}>{t.label}</option>)}
+          {TIPOS.filter((t) => !tipos || tipos.includes(t.v)).map((t) => <option key={t.v} value={t.v}>{t.label}</option>)}
         </select>
       </div>
 
@@ -369,6 +377,19 @@ function PainelQuestao({ q, numero, topic, idx, choiceQs, set }: {
       ) : null}
 
       {q.tipo === "numerica" ? <PainelNumerica q={q} set={set} /> : null}
+
+      {planos && (((q.tipo === "escolha_simples" || q.tipo === "escolha_multipla") && (q.opcoes ?? []).some((o) => o.conforme === false))
+        || (q.tipo === "numerica" && (q.numerica?.limite?.min != null || q.numerica?.limite?.max != null))) ? (
+        <div className="field">
+          <label htmlFor={"plano-" + q.key}>Quando não conforme, gerar plano de ação</label>
+          <select id={"plano-" + q.key} className="select" value={q.plano_acao_modelo_id ?? ""}
+            onChange={(e: { target: { value: string } }) => setQ({ plano_acao_modelo_id: e.target.value || null })}>
+            <option value="">Não gerar</option>
+            {planos.map((m) => <option key={m.id} value={m.id}>{m.nome}</option>)}
+          </select>
+          <span className="help">O responsável recebe um link por e-mail para registrar a correção.</span>
+        </div>
+      ) : null}
 
       {q.tipo === "texto" ? <Switch label="Permitir leitura de código" desc="Mostra o botão da câmera para ler código de barras ou QR." checked={!!q.texto?.leitura_codigo} onChange={(v) => setQ({ texto: { leitura_codigo: v } })} /> : null}
 
@@ -549,6 +570,53 @@ function AbaAvaliados({ avaliados, vinculados, set }: { avaliados: Avaliado[]; v
         </fieldset>
       )}
       {!todos ? <div style={{ marginTop: "var(--space-3)" }}><Button variant="ghost" onClick={() => set([])}>Liberar para todos</Button></div> : null}
+    </div>
+  );
+}
+
+// ======================= Aba Relatório (S16) =======================
+function AbaRelatorio({ def, edit }: { def: FormDefinition; edit: (fn: (d: FormDefinition) => void) => void }) {
+  const em = def.config.relatorio?.emails ?? {};
+  const [novo, setNovo] = useState("");
+  const [erro, setErro] = useState<string | null>(null);
+  const setEm = (patch: Partial<NonNullable<NonNullable<FormDefinition["config"]["relatorio"]>["emails"]>>) =>
+    edit((d) => { d.config.relatorio = { ...d.config.relatorio, emails: { ...d.config.relatorio?.emails, ...patch } }; });
+  const extras = em.extras ?? [];
+  function adicionar() {
+    const e = novo.trim();
+    if (!/^\S+@\S+\.\S+$/.test(e)) { setErro("Digite um e-mail completo."); return; }
+    if (extras.includes(e)) { setErro("Esse e-mail já está na lista."); return; }
+    setEm({ extras: [...extras, e] });
+    setNovo(""); setErro(null);
+  }
+  return (
+    <div className="stack" style={{ maxWidth: "var(--layout-form-max)" }}>
+      <section className="card">
+        <h2 style={{ fontSize: "var(--text-lg)" }}>Quem recebe o relatório</h2>
+        <p className="muted" style={{ margin: "4px 0 0" }}>O PDF é enviado quando a inspeção chega finalizada ao servidor.</p>
+        <Switch label="Enviar para o avaliado" desc="Usa o e-mail do cadastro do avaliado. Sem e-mail no cadastro, ninguém recebe." checked={!!em.avaliado} onChange={(v) => setEm({ avaliado: v })} />
+        <div className="stack-sm" style={{ paddingTop: "var(--space-4)" }}>
+          <div className="label">Enviar também para</div>
+          {extras.length ? (
+            <ul className="stack-sm" style={{ listStyle: "none", padding: 0, margin: 0 }}>
+              {extras.map((e) => (
+                <li key={e} className="row-between" style={{ padding: "6px 0", borderBottom: "1px solid var(--c-border)" }}>
+                  <span><Icon n="mail" size="sm" /> {e}</span>
+                  <Button variant="ghost" size="sm" icon="x" label={`Remover ${e}`} onClick={() => setEm({ extras: extras.filter((x) => x !== e) })} />
+                </li>
+              ))}
+            </ul>
+          ) : <span className="muted">Ninguém além do avaliado.</span>}
+          <form className="row" style={{ alignItems: "flex-end" }} onSubmit={(e: { preventDefault(): void }) => { e.preventDefault(); adicionar(); }}>
+            <div className="grow"><TextField label="Adicionar e-mail" type="email" value={novo} onChange={(v) => { setNovo(v); setErro(null); }} error={erro} placeholder="qualidade@empresa.com.br" /></div>
+            <Button type="submit" variant="secondary" icon="plus">Adicionar</Button>
+          </form>
+        </div>
+      </section>
+      <section className="card">
+        <h2 style={{ fontSize: "var(--text-lg)" }}>Layout do PDF</h2>
+        <p className="muted" style={{ margin: "4px 0 0" }}>Logos de cabeçalho e rodapé, cor, uma ou duas colunas e fotos por questão ou por tópico chegam no marco 3. Hoje o PDF sai no layout padrão, com fotos, assinatura e a lista de não conformidades.</p>
+      </section>
     </div>
   );
 }

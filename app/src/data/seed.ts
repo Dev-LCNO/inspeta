@@ -1,6 +1,6 @@
 // Dados de exemplo — textos escritos para este produto (nenhum vem do original).
 import type { FormDefinition } from "@app/form-engine";
-import type { Avaliado, Formulario, FormularioVersao, Membro, Organizacao } from "./types";
+import type { Avaliado, Formulario, FormularioVersao, Membro, Organizacao, PlanoModelo } from "./types";
 
 export const ORG: Organizacao = { id: "org-1", nome: "Distribuidora Exemplo", fuso_horario: "America/Rio_Branco" };
 
@@ -16,13 +16,13 @@ export const MEMBROS: Membro[] = [
 ];
 
 const now = "2026-10-01T12:00:00.000Z";
-const av = (id: string, nome: string, codigo: string, endereco: string): Avaliado => ({
-  id, org_id: ORG.id, nome, codigo_externo: codigo, endereco, ativo: true, created_at: now, updated_at: now,
+const av = (id: string, nome: string, codigo: string, endereco: string, email?: string): Avaliado => ({
+  id, org_id: ORG.id, nome, codigo_externo: codigo, endereco, email, ativo: true, created_at: now, updated_at: now,
 });
 
 export const AVALIADOS: Avaliado[] = [
-  av("a-bosque", "Loja 01 — Bosque", "LJ01", "Av. Ceará, 1500 — Bosque"),
-  av("a-centro", "Loja 02 — Centro", "LJ02", "Rua Marechal Deodoro, 210 — Centro"),
+  av("a-bosque", "Loja 01 — Bosque", "LJ01", "Av. Ceará, 1500 — Bosque", "gerencia.lj01@exemplo.com"),
+  av("a-centro", "Loja 02 — Centro", "LJ02", "Rua Marechal Deodoro, 210 — Centro", "gerencia.lj02@exemplo.com"),
   av("a-doca3", "CD — Doca 3", "CD03", "Estrada do Aeroporto, km 3"),
 ];
 
@@ -43,7 +43,7 @@ const sn = (key: string, titulo: string, extra: Record<string, unknown> = {}) =>
 });
 
 export const DEF_FLV: FormDefinition = {
-  config: { calcular_nota: true, casas_decimais: 1, classificacoes: CLASSES, geo: "off", reincidencia_meses: 3 },
+  config: { calcular_nota: true, casas_decimais: 1, classificacoes: CLASSES, geo: "off", reincidencia_meses: 3, relatorio: { emails: { avaliado: true, extras: ["qualidade@exemplo.com"] } } },
   topicos: [
     {
       key: "t-venda", titulo: "Área de venda",
@@ -82,7 +82,7 @@ export const DEF_FLV: FormDefinition = {
           foto_obrigatoria: true,
           ajuda: { texto: "Leia o termômetro da porta e tire foto do visor." },
         },
-        sn("q-porta", "A porta da câmara veda sem frestas?"),
+        sn("q-porta", "A porta da câmara veda sem frestas?", { plano_acao_modelo_id: "pm-manutencao" }),
         {
           key: "q-porta-motivo", titulo: "O que está causando a fresta?", tipo: "texto",
           obrigatoria: true, depende_de: { questao: "q-porta", opcao: "q-porta-nao" },
@@ -155,5 +155,32 @@ export const HISTORICO = [
       "r-nf": { texto: "000.481.233" }, "r-lacre": { opcoes: ["r-lacre-sim"] },
       "r-bruto": { numero: 12.4 }, "r-tara": { numero: 0.6 }, "r-temp": { numero: 8.5, observacao: "Caminhão chegou com o baú aberto." },
     },
+  },
+];
+
+export const PLANOS_MODELO: PlanoModelo[] = [
+  {
+    id: "pm-retirada", org_id: ORG.id, nome: "Retirada e descarte", agrupamento: "por_inspecao", prazo_dias: 1,
+    destinatario: "avaliado", created_at: now, updated_at: now,
+    definicao: { config: { calcular_nota: false }, topicos: [{ key: "pr-t", titulo: "Correção", questoes: [
+      { key: "pr-acao", titulo: "O que foi feito com os produtos?", tipo: "texto", obrigatoria: true, foto_obrigatoria: true,
+        ajuda: { texto: "Descreva a retirada e anexe foto da área já corrigida." } },
+      { key: "pr-causa", titulo: "Qual foi a causa?", tipo: "escolha_simples", obrigatoria: true, opcoes: [
+        { key: "pr-causa-ronda", texto: "Faltou ronda de validade" },
+        { key: "pr-causa-fefo", texto: "Reposição fora do PVPS/FEFO" },
+        { key: "pr-causa-etq", texto: "Etiqueta ilegível" },
+        { key: "pr-causa-outra", texto: "Outra" },
+      ] },
+      { key: "pr-quem", titulo: "Quem fez a correção?", tipo: "texto", obrigatoria: true },
+    ] }] },
+  },
+  {
+    id: "pm-manutencao", org_id: ORG.id, nome: "Manutenção corretiva", agrupamento: "por_nc", prazo_dias: 5,
+    destinatario: "fixo", email_fixo: "manutencao@exemplo.com", created_at: now, updated_at: now,
+    definicao: { config: { calcular_nota: false }, topicos: [{ key: "pm-t", titulo: "Manutenção", questoes: [
+      { key: "pm-os", titulo: "Número da ordem de serviço", tipo: "texto", obrigatoria: true },
+      { key: "pm-data", titulo: "Data prevista para o conserto", tipo: "data_hora", data_hora: { campos: "data" }, obrigatoria: true },
+      { key: "pm-obs", titulo: "Observações", tipo: "texto" },
+    ] }] },
   },
 ];

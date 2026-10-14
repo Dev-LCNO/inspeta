@@ -109,6 +109,74 @@ export interface InspecaoEvento {
   em: ISO;
 }
 
+// ---- planos de ação ----
+
+export interface PlanoModelo {
+  id: ID;
+  org_id: ID;
+  nome: string;
+  definicao: FormDefinition; // as perguntas que o responsável responde (por não conformidade)
+  agrupamento: "por_inspecao" | "por_nc";
+  prazo_dias: number;
+  destinatario: "avaliado" | "fixo";
+  email_fixo?: string;
+  created_at: ISO;
+  updated_at: ISO;
+}
+
+export type PlanoStatus = "aberto" | "finalizado";
+export type PlanoSituacao = PlanoStatus | "em_atraso";
+
+export interface PlanoAcao {
+  id: ID;
+  org_id: ID;
+  modelo_id: ID;
+  modelo_snapshot: Pick<PlanoModelo, "nome" | "definicao">;
+  inspecao_id: ID;
+  avaliado_id: ID;
+  formulario_id: ID;
+  questao_keys: string[];
+  responsavel_email: string | null;
+  token_hash: string;
+  prazo: string; // yyyy-mm-dd no fuso da organização
+  status: PlanoStatus;
+  /** respostas por não conformidade: questao_key da NC -> respostas do plano */
+  respostas: Record<string, Answers>;
+  anexos: (AnexoMeta & { nc_key: string })[];
+  respondido_por?: string;
+  finalizado_em: ISO | null;
+  ultimo_email_em: ISO | null;
+  created_at: ISO;
+  updated_at: ISO;
+}
+
+export interface EmailSaida {
+  id: ID;
+  idem_key: string;
+  para: string;
+  assunto: string;
+  texto: string;
+  link?: string;
+  anexo?: { tipo: "relatorio_pdf"; inspecao_id: ID };
+  status: "enviado" | "sem_destinatario";
+  criado_em: ISO;
+}
+
+export interface LinhaImportacao {
+  nome?: string;
+  codigo_externo?: string;
+  documento?: string;
+  email?: string;
+  telefone?: string;
+  endereco?: string;
+}
+
+export interface ResultadoImportacao {
+  novos: number;
+  atualizados: number;
+  erros: { linha: number; motivo: string }[];
+}
+
 // ---- sync ----
 
 export interface PacoteFormulario {

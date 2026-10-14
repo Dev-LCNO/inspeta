@@ -89,6 +89,7 @@ export interface FormConfig {
   geo?: "off" | "inicio" | "fim" | "inicio_fim";
   preenchimento_sequencial?: boolean;
   reincidencia_meses?: number;
+  relatorio?: { emails?: { avaliado?: boolean; extras?: string[] } };
 }
 
 export interface FormDefinition {
