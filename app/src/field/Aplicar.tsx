@@ -66,7 +66,7 @@ export function Aplicar({ me, clientUuid }: { me: Membro; clientUuid: string }) 
       const res = await device.finalizar(me.id, clientUuid);
       if (!res.ok) {
         setMostrarErros(true);
-        toast({ tone: "error", text: `Faltam ${res.pendentes.length} ${res.pendentes.length === 1 ? "questão" : "questões"} para finalizar.` });
+        toast({ tone: "error", text: `${res.pendentes.length === 1 ? "Falta 1 questão" : `Faltam ${res.pendentes.length} questões`} para finalizar.` });
         return;
       }
       setFinalizada(true);
@@ -175,7 +175,7 @@ function Revisao({ ev, insp, topicosVis, irPara }: { ev: Evaluation; insp: Inspe
     <div className="stack">
       {pend.length ? (
         <section className="card stack-sm" aria-labelledby="h-pend">
-          <h2 id="h-pend" style={{ fontSize: "var(--text-base)", color: "var(--c-danger)" }} className="row"><Icon n="alert" />Faltam {pend.length} para finalizar</h2>
+          <h2 id="h-pend" style={{ fontSize: "var(--text-base)", color: "var(--c-danger)" }} className="row"><Icon n="alert" />{pend.length === 1 ? "Falta 1 questão" : `Faltam ${pend.length} questões`} para finalizar</h2>
           {pend.map((k) => {
             const x = tituloDe(k)!;
             const res = ev.questoes[k]!;

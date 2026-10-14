@@ -5,6 +5,7 @@ import { fmt } from "../ui/format";
 import { Icon } from "../ui/icons";
 import { Button, Callout, SkeletonBlock } from "../ui/primitives";
 import { Link, navigate } from "../ui/router";
+import { AgendaTile } from "./Agenda";
 import { AirplaneToggle, TopBar, useAparelho } from "./FieldApp";
 
 export function Home({ me }: { me: Membro }) {
@@ -41,6 +42,7 @@ export function Home({ me }: { me: Membro }) {
         ) : null}
 
         <div className="stack-sm">
+          <AgendaTile s={s} />
           <Link to="/campo/historico" className="tile">
             <span className="ic"><Icon n="history" /></span>
             <span className="grow"><span className="t">Minhas inspeções</span><br /><span className="d">Rascunhos, fila de envio e enviadas</span></span>

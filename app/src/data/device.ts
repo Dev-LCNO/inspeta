@@ -92,7 +92,7 @@ export interface ResumoSync { enviadas: number; fotos: number; erros: number; of
 export const device = {
   estado: load,
 
-  async novaInspecao(membroId: ID, formulario_id: ID, avaliado_id: ID): Promise<InspecaoLocal> {
+  async novaInspecao(membroId: ID, formulario_id: ID, avaliado_id: ID, ocorrencia_id: ID | null = null): Promise<InspecaoLocal> {
     return mutate(membroId, (s) => {
       const f = formularioDoPacote(s.pacote, formulario_id);
       if (!f) throw new Error("Formulário não está neste aparelho. Sincronize.");
@@ -100,7 +100,7 @@ export const device = {
         client_uuid: crypto.randomUUID(), formulario_id, formulario_versao_id: f.versao.id, avaliado_id,
         status: "rascunho", iniciada_em: nowISO(), finalizada_em: null, respostas: {}, anexos: [],
         device_id: s.device_id, estado: "rascunho", fotos: [], atualizada_em: nowISO(),
-        definicao: f.versao.definicao, nome_formulario: f.nome,
+        definicao: f.versao.definicao, nome_formulario: f.nome, ocorrencia_id,
       };
       s.inspecoes.unshift(i);
       return structuredClone(i);
@@ -263,7 +263,7 @@ function toEnvio(i: InspecaoLocal): InspecaoEnvio {
     avaliado_id: i.avaliado_id, status: i.status, iniciada_em: i.iniciada_em, finalizada_em: i.finalizada_em,
     geo_inicio: i.geo_inicio ?? null, geo_fim: i.geo_fim ?? null, respostas: i.respostas,
     anexos: i.fotos.map(({ client_uuid, questao_key, tipo, mime, bytes }) => ({ client_uuid, questao_key, tipo, mime, bytes })),
-    device_id: i.device_id,
+    device_id: i.device_id, ocorrencia_id: i.ocorrencia_id ?? null,
   };
 }
 

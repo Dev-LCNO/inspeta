@@ -5,12 +5,13 @@ import { evaluateForm, validateDefinition, type DefinitionIssue, type FormDefini
 import { emitChange, kv, serial } from "./kv";
 import { net } from "./net";
 import { ACESSO_EQUIPE_NOVA, ACESSO_PESSOA_NOVA, resolverMembros } from "./acesso";
-import { AVALIADOS, EQUIPES, FORMULARIOS, FUNCOES, HISTORICO, MEMBROS_REG, ORG, PLANOS_MODELO, VERSOES } from "./seed";
+import { descreverRegra, instantesDaRegra, limiteDaOcorrencia, situacaoOcorrencia, somarDias as somarDiasAg, validarRegra } from "./agenda";
+import { agendamentosIniciais, AVALIADOS, EQUIPES, FORMULARIOS, FUNCOES, HISTORICO, MEMBROS_REG, ORG, PLANOS_MODELO, VERSOES } from "./seed";
 import {
   OfflineError,
   type Avaliado, type FiltroInspecoes, type Formulario, type FormularioVersao, type ID, type Inspecao,
   type InspecaoEnvio, type InspecaoEvento, type Membro, type Organizacao, type PacoteSync, type ResultadoEnvio,
-  type Acesso, type Equipe, type Funcao, type MembroRegistro,
+  type Acesso, type Agendamento, type Ocorrencia, type OcorrenciaPacote, type OcorrenciaSituacao, type RegraAgenda, type Equipe, type Funcao, type MembroRegistro,
   type EmailSaida, type LinhaImportacao, type PlanoAcao, type PlanoModelo, type PlanoSituacao, type ResultadoImportacao,
 } from "./types";
 import type { Answers } from "@app/form-engine";
@@ -29,6 +30,8 @@ interface State {
   membros: MembroRegistro[];
   funcoes: Funcao[];
   equipes: Equipe[];
+  agendamentos: Agendamento[];
+  ocorrencias: Ocorrencia[];
 }
 
 const STATE_KEY = "srv:state";
@@ -51,6 +54,8 @@ async function load(): Promise<State> {
     s.membros ??= clone(MEMBROS_REG);
     s.funcoes ??= clone(FUNCOES);
     s.equipes ??= clone(EQUIPES);
+    s.agendamentos ??= agendamentosIniciais(hojeNaOrg());
+    s.ocorrencias ??= [];
     if (localStorage.getItem(MEMBROS_KEY) === null) publicarMembros(s);
     return s;
   }
@@ -58,6 +63,7 @@ async function load(): Promise<State> {
     v: 1, formularios: clone(FORMULARIOS), versoes: clone(VERSOES), avaliados: clone(AVALIADOS),
     inspecoes: [], eventos: [], eventoSeq: 0, planosModelo: clone(PLANOS_MODELO), planos: [], emails: [],
     membros: clone(MEMBROS_REG), funcoes: clone(FUNCOES), equipes: clone(EQUIPES),
+    agendamentos: agendamentosIniciais(hojeNaOrg()), ocorrencias: [],
   };
   for (const h of HISTORICO) {
     const m = membroEm(fresh, h.responsavel_id);
@@ -152,6 +158,7 @@ function processar(s: State, m: Membro, e: InspecaoEnvio, agora = nowISO()): Res
     nota_pct: ev.nota_pct, pontos: ev.pontos, pontos_max: ev.pontos_max,
     classificacao: ev.classificacao?.nome ?? null, classificacao_cor: ev.classificacao?.cor ?? null,
     qtd_nao_conformidades: ev.nao_conformidades.length, resultado, device_id: e.device_id, sincronizada_em: agora,
+    ocorrencia_id: e.status === "completa" ? cumprirOcorrencia(s, m, e, existente?.id) : null,
   };
   let id: ID;
   if (existente) {
@@ -163,6 +170,8 @@ function processar(s: State, m: Membro, e: InspecaoEnvio, agora = nowISO()): Res
     log(s, id, m.id, "criada", { device_id: e.device_id }, e.iniciada_em);
   }
   log(s, id, m.id, "sincronizada", { device_id: e.device_id }, agora);
+  const oc = base.ocorrencia_id ? s.ocorrencias.find((o) => o.id === base.ocorrencia_id) : undefined;
+  if (oc) oc.inspecao_id = id;
   if (e.status === "completa") log(s, id, m.id, "finalizada", { nota_pct: ev.nota_pct, ncs: ev.nao_conformidades.length }, e.finalizada_em ?? agora);
   return { client_uuid: e.client_uuid, ok: true, id, nota_pct: ev.nota_pct, classificacao: ev.classificacao?.nome ?? null };
 }
@@ -346,6 +355,7 @@ export const server = {
   async pacote(membroId: ID): Promise<PacoteSync> {
     requireOnline();
     await latency();
+    await rodarAgenda();
     const s = await load();
     const m = membroEm(s, membroId);
     const formularios = s.formularios
@@ -360,7 +370,18 @@ export const server = {
       const p = anteriores(s, f.formulario_id, a.id);
       if (Object.keys(p).length) anterioresMap[`${f.formulario_id}|${a.id}`] = p as PacoteSync["anteriores"][string];
     }
-    return { cursor: nowISO(), membro: m, org: ORG, formularios, avaliados: clone(s.avaliados.filter((a) => a.ativo && podeAvaliado(m, a.id))), anteriores: anterioresMap };
+    const avaliados = clone(s.avaliados.filter((a) => a.ativo && podeAvaliado(m, a.id)));
+    const hoje = hojeNaOrg();
+    const janelaDe = new Date(Date.parse(somarDiasAg(hoje, -7) + "T00:00:00Z")).toISOString();
+    const agenda: OcorrenciaPacote[] = s.ocorrencias
+      .filter((o) => o.status === "pendente" && o.previsto_em >= janelaDe)
+      .flatMap((o) => {
+        const a = s.agendamentos.find((x) => x.id === o.agendamento_id);
+        if (!a || !a.responsaveis.includes(m.id) || !formularios.some((f) => f.formulario_id === a.formulario_id) || !avaliados.some((x) => x.id === a.avaliado_id)) return [];
+        return [{ id: o.id, formulario_id: a.formulario_id, avaliado_id: a.avaliado_id, previsto_em: o.previsto_em, dia_inteiro: a.dia_inteiro, limite: limiteDaOcorrencia(o.previsto_em, a), descricao: descreverRegra(a) }];
+      })
+      .sort((x, y) => x.previsto_em.localeCompare(y.previsto_em));
+    return { cursor: nowISO(), membro: m, org: ORG, formularios, avaliados, anteriores: anterioresMap, agenda };
   },
   async enviarAnexo(membroId: ID, client_uuid: string, dataUrl: string): Promise<void> {
     requireOnline();
@@ -570,6 +591,102 @@ export const server = {
     return mutate("avaliados", aplicar);
   },
 
+  // ---- agendamentos (S05–S07) ----
+  /** = cron materializar-ocorrencias; aqui roda sob demanda (listar, pacote). Idempotente. */
+  async rodarAgenda(): Promise<number> { return rodarAgenda(); },
+  async listarOcorrencias(quem: Membro, filtro: { de?: string; ate?: string; situacao?: OcorrenciaSituacao | ""; busca?: string } = {}) {
+    await rodarAgenda();
+    await latency();
+    const s = await load();
+    const agora = Date.now();
+    const busca = (filtro.busca ?? "").trim().toLowerCase();
+    const nomeM = new Map(s.membros.map((x) => [x.id, x.nome]));
+    return s.ocorrencias.flatMap((o) => {
+      const a = s.agendamentos.find((x) => x.id === o.agendamento_id);
+      if (!a || !podeVerAgendamento(quem, a)) return [];
+      const dia = dataNaOrg(o.previsto_em, a.fuso_horario);
+      if (filtro.de && dia < filtro.de) return [];
+      if (filtro.ate && dia > filtro.ate) return [];
+      const situacao = situacaoOcorrencia(o, a, agora);
+      if (filtro.situacao && situacao !== filtro.situacao) return [];
+      const row = {
+        ...clone(o), situacao, agendamento: clone(a), descricao: descreverRegra(a),
+        formulario: s.formularios.find((f) => f.id === a.formulario_id)?.nome ?? "Formulário removido",
+        avaliado: s.avaliados.find((x) => x.id === a.avaliado_id)?.nome ?? "Avaliado removido",
+        responsaveis: a.responsaveis.map((id) => nomeM.get(id) ?? "—"),
+      };
+      if (busca && ![row.formulario, row.avaliado, ...row.responsaveis].join(" ").toLowerCase().includes(busca)) return [];
+      return [row];
+    }).sort((x, y) => x.previsto_em.localeCompare(y.previsto_em) || x.avaliado.localeCompare(y.avaliado, "pt-BR"));
+  },
+  async obterAgendamento(id: ID): Promise<Agendamento> {
+    const a = (await load()).agendamentos.find((x) => x.id === id);
+    if (!a) throw new Error("Agendamento não encontrado.");
+    return clone(a);
+  },
+  /** Cria ou edita. Na edição, as ocorrências futuras ainda pendentes são refeitas pela regra nova. */
+  async salvarAgendamento(quem: Membro, dados: RegraAgenda & { id?: ID; formulario_id: ID; avaliado_id: ID; responsaveis: ID[] }): Promise<{ agendamento: Agendamento; geradas: number }> {
+    exigir(quem, "gerenciar_agendamentos");
+    await latency();
+    const out = await mutate("agenda", (s) => {
+      const regra: RegraAgenda = {
+        data_inicio: dados.data_inicio, horarios: dados.dia_inteiro ? [] : [...new Set(dados.horarios)].sort(), dia_inteiro: dados.dia_inteiro,
+        fuso_horario: ORG.fuso_horario, recorrencia: dados.recorrencia,
+        dias_semana: dados.recorrencia === "semanal" ? [...new Set(dados.dias_semana ?? [])].sort() : undefined,
+        termino: dados.recorrencia === "nenhuma" ? "nunca" : dados.termino,
+        termino_data: dados.termino === "data" ? dados.termino_data : undefined,
+        termino_qtd: dados.termino === "quantidade" ? dados.termino_qtd : undefined,
+      };
+      const problemas = validarRegra(regra);
+      const f = s.formularios.find((x) => x.id === dados.formulario_id && !x.arquivado);
+      if (!f) problemas.push("Escolha um formulário.");
+      else if (!f.versao_publicada_id) problemas.push("Este formulário ainda não foi publicado.");
+      if (!s.avaliados.some((x) => x.id === dados.avaliado_id)) problemas.push("Escolha o avaliado.");
+      else if (f && f.avaliados_vinculados.length && !f.avaliados_vinculados.includes(dados.avaliado_id)) problemas.push("Este formulário não vale para o avaliado escolhido.");
+      if (!dados.responsaveis.length) problemas.push("Escolha quem vai aplicar.");
+      const efetivos = resolverMembros(s.membros, s.funcoes, s.equipes);
+      for (const id of dados.responsaveis) {
+        const r = efetivos.find((x) => x.id === id);
+        if (!r || !r.ativo) problemas.push("Uma das pessoas escolhidas não está mais ativa.");
+        else if (!pode(r, "aplicar") || !podeFormulario(r, dados.formulario_id) || !podeAvaliado(r, dados.avaliado_id))
+          problemas.push(`${r.nome} não tem acesso a este formulário ou avaliado. Libere em Permissões.`);
+      }
+      if (problemas.length) throw new Error(problemas.join(" "));
+      let a: Agendamento;
+      if (dados.id) {
+        const atual = s.agendamentos.find((x) => x.id === dados.id);
+        if (!atual) throw new Error("Agendamento não encontrado.");
+        const agora = nowISO();
+        s.ocorrencias = s.ocorrencias.filter((o) => !(o.agendamento_id === atual.id && o.status === "pendente" && o.previsto_em > agora));
+        Object.assign(atual, regra, { formulario_id: dados.formulario_id, avaliado_id: dados.avaliado_id, responsaveis: [...dados.responsaveis], ativo: true, updated_at: agora });
+        delete (atual as Partial<Agendamento>).dias_semana; if (regra.dias_semana) atual.dias_semana = regra.dias_semana;
+        a = atual;
+      } else {
+        a = { ...regra, id: uuid(), org_id: ORG.id, formulario_id: dados.formulario_id, avaliado_id: dados.avaliado_id, responsaveis: [...dados.responsaveis],
+          ativo: true, materializado_ate: null, criado_por: quem.id, created_at: nowISO(), updated_at: nowISO() };
+        s.agendamentos.push(a);
+      }
+      const geradas = materializar(s, a);
+      return { agendamento: clone(a), geradas };
+    });
+    return out;
+  },
+  /** S07: só esta ou esta e as seguintes (encerra o agendamento). Justificativa obrigatória. */
+  inativarOcorrencia(quem: Membro, id: ID, escopo: "esta" | "seguintes", justificativa: string): Promise<number> {
+    return mutate("agenda", (s) => {
+      const o = s.ocorrencias.find((x) => x.id === id);
+      if (!o) throw new Error("Ocorrência não encontrada.");
+      const a = s.agendamentos.find((x) => x.id === o.agendamento_id)!;
+      if (!pode(quem, "gerenciar_agendamentos") && !a.responsaveis.includes(quem.id)) throw new Error("Você não tem permissão para isso.");
+      if (justificativa.trim().length < 3) throw new Error("Escreva o motivo.");
+      if (o.status !== "pendente") throw new Error("Só dá para inativar o que ainda está pendente.");
+      const alvo = escopo === "esta" ? [o] : s.ocorrencias.filter((x) => x.agendamento_id === a.id && x.status === "pendente" && x.previsto_em >= o.previsto_em);
+      for (const x of alvo) Object.assign(x, { status: "inativa", justificativa: justificativa.trim(), inativada_por: quem.id, updated_at: nowISO() });
+      if (escopo === "seguintes") { a.ativo = false; a.updated_at = nowISO(); }
+      return alvo.length;
+    });
+  },
+
   // ---- S30/S31: pessoas, funções e equipes (exige gerenciar_permissoes) ----
   async listarPessoas(): Promise<MembroRegistro[]> {
     await latency();
@@ -709,6 +826,56 @@ function limparAcesso(s: State, a: Acesso, dono?: ID): Acesso {
     ver_membros: [...new Set(a.ver_membros)].filter((x) => ms.has(x) && x !== dono),
     ver_equipes: [...new Set(a.ver_equipes)].filter((x) => es.has(x)),
   };
+}
+
+/** Quem vê o agendamento: quem gerencia agendas, os responsáveis e quem acompanha os responsáveis. */
+function podeVerAgendamento(m: Membro, a: Agendamento): boolean {
+  return pode(m, "gerenciar_agendamentos") || pode(m, "ver_todas_inspecoes") || a.responsaveis.some((id) => id === m.id || m.ve_inspecoes_de.includes(id));
+}
+function dataNaOrg(iso: string, fuso = ORG.fuso_horario): string {
+  return new Intl.DateTimeFormat("en-CA", { timeZone: fuso }).format(new Date(iso));
+}
+/** Gera as ocorrências dos próximos 14 dias. unique(agendamento_id, previsto_em): rodar 2x não duplica. */
+function materializar(s: State, a: Agendamento, agora = Date.now()): number {
+  if (!a.ativo) return 0;
+  const hoje = dataNaOrg(new Date(agora).toISOString(), a.fuso_horario);
+  const ate = somarDiasAg(hoje, 14);
+  let n = 0;
+  for (const previsto_em of instantesDaRegra(a, hoje, ate)) {
+    if (Date.parse(limiteDaOcorrencia(previsto_em, a)) <= agora) continue; // já passou: não nasce atrasada
+    if (s.ocorrencias.some((o) => o.agendamento_id === a.id && o.previsto_em === previsto_em)) continue;
+    s.ocorrencias.push({ id: uuid(), org_id: ORG.id, agendamento_id: a.id, previsto_em, status: "pendente", created_at: nowISO(), updated_at: nowISO() });
+    n++;
+  }
+  a.materializado_ate = ate;
+  return n;
+}
+/** Salva só se gerou algo (assim listar não dispara recarga em laço). */
+function rodarAgenda(): Promise<number> {
+  return serial(async () => {
+    const s = await load();
+    const hoje = hojeNaOrg();
+    const pendentes = s.agendamentos.filter((a) => a.ativo && a.materializado_ate !== somarDiasAg(hoje, 14));
+    let n = 0;
+    for (const a of pendentes) n += materializar(s, a);
+    if (pendentes.length) await save(s, n ? "agenda" : "agenda-silencioso");
+    return n;
+  });
+}
+/**
+ * A primeira inspeção finalizada cumpre a ocorrência (= update … where status = 'pendente').
+ * Se outra pessoa já cumpriu, ou a ocorrência foi inativada, esta vira avulsa.
+ */
+function cumprirOcorrencia(s: State, m: Membro, e: InspecaoEnvio, inspecaoId?: ID): ID | null {
+  if (!e.ocorrencia_id) return null;
+  const o = s.ocorrencias.find((x) => x.id === e.ocorrencia_id);
+  const a = o && s.agendamentos.find((x) => x.id === o.agendamento_id);
+  if (!o || !a || !a.responsaveis.includes(m.id) || a.formulario_id !== e.formulario_id || a.avaliado_id !== e.avaliado_id) return null;
+  if (o.status === "completa" && o.inspecao_id && o.inspecao_id === inspecaoId) return o.id;
+  if (o.status !== "pendente") return null;
+  o.status = "completa";
+  o.updated_at = nowISO();
+  return o.id;
 }
 
 function hojeNaOrg(): string {

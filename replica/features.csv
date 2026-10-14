@@ -55,9 +55,9 @@ Reenviar e-mail do plano,planos,should,yes,yes,gera link novo e invalida o anter
 Agrupar planos por inspeção ou por NC,planos,could,yes,yes,
 Aprovação de inspeção multi-etapa,aprovacao,should,yes,no,S32
 Aprovação de plano de ação,aprovacao,could,yes,no,
-Agendamento de inspeções com recorrência,agenda,should,yes,no,S06
-Notificação push no horário,agenda,should,yes,no,
-Inativar agendamento com justificativa,agenda,could,yes,no,S07
+Agendamento de inspeções com recorrência,agenda,should,yes,yes,"S05/S06: única, diária, semanal (dias), mensal; vários horários ou dia inteiro; término nunca/data/vezes; fuso da org; 14 dias materializados sem duplicar"
+Notificação push no horário,agenda,should,yes,partial,aviso local pelo service worker com o app aberto; Web Push com o app fechado depende do backend (VAPID)
+Inativar agendamento com justificativa,agenda,could,yes,yes,S07: só esta ou esta e as seguintes (encerra o agendamento)
 Workflow visual (início/formulário/condição/status),workflow,could,yes,no,S28
 Respostas repetidas entre etapas do workflow,workflow,could,yes,no,
 Painel/dashboard de indicadores,bi,should,yes,no,original vende como Panorama separado — oportunidade

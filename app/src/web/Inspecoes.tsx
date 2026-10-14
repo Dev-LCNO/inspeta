@@ -1,4 +1,4 @@
-// S04 — Histórico de inspeções (filtros na URL) · S05 — Agendamentos (marco 3)
+// S04 — Histórico de inspeções (filtros na URL) · S05 — Agendamentos (Agendamentos.tsx)
 import { useEffect, useMemo, useState } from "react";
 import { server } from "../data/server";
 import type { InspecaoStatus, Membro } from "../data/types";
@@ -9,6 +9,7 @@ import {
   Button, ButtonLink, EmptyState, ErrorState, PageHeader, ScoreInline, SkeletonRows, StatusBadge, Tabs,
 } from "../ui/primitives";
 import { Link, navigate, useRoute, withQuery } from "../ui/router";
+import { Agendamentos } from "./Agendamentos";
 
 export function Inspecoes({ me }: { me: Membro }) {
   const r = useRoute();
@@ -51,8 +52,7 @@ export function Inspecoes({ me }: { me: Membro }) {
       ]} />
 
       {aba === "agendamentos" ? (
-        <div className="card flat"><EmptyState icon="calendar" title="Agendamentos chegam no marco 3"
-          text="Programe inspeções recorrentes (todo dia, toda segunda e quinta, uma vez por mês) e o aplicador recebe o aviso no celular na hora certa." /></div>
+        <Agendamentos me={me} />
       ) : (
         <>
           <div className="filterbar" role="search">

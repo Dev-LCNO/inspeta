@@ -353,3 +353,8 @@ fieldset.group > legend { font-weight: 600; padding: 0; margin-bottom: var(--spa
 .matrix td.acao small { display: block; color: var(--c-text-muted); font-size: var(--text-xs); }
 .split { display: grid; gap: var(--space-5); grid-template-columns: minmax(0, 1fr) 300px; align-items: start; }
 @media (max-width: 1023px) { .split { grid-template-columns: minmax(0, 1fr); } }
+
+/* ---------- Agendamentos (S06) ---------- */
+.chip-dia { display: inline-flex; align-items: center; justify-content: center; min-width: 48px; height: 44px; padding: 0 var(--space-2); border: 1px solid var(--c-border-input); border-radius: var(--radius-pill); font-weight: 600; font-size: var(--text-sm); cursor: pointer; background: var(--c-bg); color: var(--c-text); user-select: none; }
+.chip-dia.on { background: var(--c-accent); border-color: var(--c-accent); color: var(--c-on-accent); }
+.chip-dia:focus-within { outline: var(--bw-focus) solid var(--c-focus); outline-offset: 2px; }

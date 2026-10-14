@@ -4,8 +4,8 @@ set -euo pipefail
 ROOT="$(cd "$(dirname "$0")/.." && pwd -P)"; cd "$ROOT"
 export NODE_PATH="${NODE_PATH:-/opt/npm-tools/node_modules}"
 
-echo "== motor de formulário"
-tsx --test packages/form-engine/test/*.test.ts 2>&1 | grep -E "^# (tests|pass|fail)"
+echo "== testes de unidade (motor de formulário e agenda)"
+tsx --test packages/form-engine/test/*.test.ts app/test/*.test.ts 2>&1 | grep -E "^# (tests|pass|fail)"
 
 echo "== build"
 ./scripts/build.sh
@@ -19,4 +19,5 @@ BASE="http://localhost:$PORT/" node tests/e2e-fatia.mjs | grep -v "web navegou"
 BASE="http://localhost:$PORT/" node tests/e2e-offline-pwa.mjs
 BASE="http://localhost:$PORT/" node tests/e2e-marco2.mjs
 BASE="http://localhost:$PORT/" node tests/e2e-marco3.mjs
+BASE="http://localhost:$PORT/" node tests/e2e-agenda.mjs
 echo "== tudo verde"

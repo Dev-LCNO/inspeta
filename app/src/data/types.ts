@@ -117,6 +117,8 @@ export interface Inspecao {
   geo_fim?: { lat: number; lng: number } | null;
   respostas: Answers;
   anexos: AnexoMeta[];
+  /** ocorrência de agendamento que esta inspeção cumpriu (null = avulsa) */
+  ocorrencia_id?: ID | null;
   // calculado no SERVIDOR com o mesmo form-engine (fonte da verdade)
   nota_pct: number | null;
   pontos: number | null;
@@ -228,6 +230,8 @@ export interface PacoteSync {
   avaliados: Avaliado[];
   /** "formulario_id|avaliado_id" -> questao_key -> última resposta conhecida */
   anteriores: Record<string, Record<string, { conforme: boolean | null; resposta?: Answers[string] }>>;
+  /** ocorrências pendentes da pessoa (últimos 7 dias + próximos 14) */
+  agenda?: OcorrenciaPacote[];
 }
 
 export interface InspecaoEnvio {
@@ -243,6 +247,7 @@ export interface InspecaoEnvio {
   respostas: Answers;
   anexos: AnexoMeta[];
   device_id: string;
+  ocorrencia_id?: ID | null;
 }
 
 export type ResultadoEnvio =
@@ -254,6 +259,65 @@ export interface FiltroInspecoes {
   de?: string; // yyyy-mm-dd
   ate?: string;
   status?: InspecaoStatus | "";
+}
+
+// ---- agendamentos (S05–S07, M09) ----
+
+export type Recorrencia = "nenhuma" | "diaria" | "semanal" | "mensal";
+
+/** A regra, sem o que é do banco. É o que o S06 edita e o que agenda.ts calcula. */
+export interface RegraAgenda {
+  data_inicio: string; // yyyy-mm-dd no fuso do agendamento
+  horarios: string[]; // "HH:MM"
+  dia_inteiro: boolean;
+  fuso_horario: string;
+  recorrencia: Recorrencia;
+  dias_semana?: number[]; // 0 = domingo
+  termino: "nunca" | "data" | "quantidade";
+  termino_data?: string;
+  termino_qtd?: number;
+}
+
+export interface Agendamento extends RegraAgenda {
+  id: ID;
+  org_id: ID;
+  formulario_id: ID;
+  avaliado_id: ID;
+  responsaveis: ID[];
+  ativo: boolean;
+  materializado_ate: string | null;
+  criado_por: ID | null;
+  created_at: ISO;
+  updated_at: ISO;
+}
+
+export type OcorrenciaStatus = "pendente" | "completa" | "inativa";
+/** "atrasada" é derivada: pendente e passou do limite (2 h depois, ou o fim do dia se for o dia inteiro). */
+export type OcorrenciaSituacao = OcorrenciaStatus | "atrasada";
+
+export interface Ocorrencia {
+  id: ID;
+  org_id: ID;
+  agendamento_id: ID;
+  previsto_em: ISO;
+  status: OcorrenciaStatus;
+  justificativa?: string;
+  inativada_por?: ID | null;
+  notificado_em?: ISO | null;
+  inspecao_id?: ID | null;
+  created_at: ISO;
+  updated_at: ISO;
+}
+
+/** O que vai para o aparelho: a agenda da pessoa, pronta para abrir offline. */
+export interface OcorrenciaPacote {
+  id: ID;
+  formulario_id: ID;
+  avaliado_id: ID;
+  previsto_em: ISO;
+  dia_inteiro: boolean;
+  limite: ISO;
+  descricao: string;
 }
 
 export class OfflineError extends Error {

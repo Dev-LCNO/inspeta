@@ -8,6 +8,7 @@ import { useData, useTick } from "../ui/hooks";
 import { Icon } from "../ui/icons";
 import { Button, useToast } from "../ui/primitives";
 import { Link, navigate, useRoute } from "../ui/router";
+import { Agenda, agendarAvisos } from "./Agenda";
 import { Aplicar } from "./Aplicar";
 import { Escolher } from "./Escolher";
 import { Historico } from "./Historico";
@@ -27,6 +28,8 @@ export function FieldApp({ me }: { me: Membro }) {
     if (net.online) void device.sincronizar(me.id).then((res) => { if (res.erros) toast({ tone: "error", text: res.mensagem }); });
     return off;
   }, [me.id]);
+  const ap = useAparelho(me);
+  useEffect(() => agendarAvisos(ap.data), [ap.data?.pacote?.cursor]);
 
   const [, , tela, arg] = ["", ...r.parts];
   let body: ReactNode;
@@ -35,6 +38,7 @@ export function FieldApp({ me }: { me: Membro }) {
   else if (tela === "nova") body = <Escolher me={me} formularioId={arg} />;
   else if (tela === "aplicar" && arg) body = <Aplicar me={me} clientUuid={arg} />;
   else if (tela === "historico") body = <Historico me={me} />;
+  else if (tela === "agenda") body = <Agenda me={me} />;
   else body = <Home me={me} />;
   return <div className="field-app">{body}</div>;
 }

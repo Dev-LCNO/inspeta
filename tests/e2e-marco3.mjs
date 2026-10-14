@@ -11,7 +11,7 @@ fs.mkdirSync(SHOTS, { recursive: true });
 const browser = await chromium.launch();
 const erros = [];
 const passo = (t) => console.log("✓", t);
-const ctx = await browser.newContext({ viewport: { width: 1440, height: 900 }, deviceScaleFactor: 1 });
+const ctx = await browser.newContext({ viewport: { width: 1440, height: 900 }, deviceScaleFactor: 1, locale: "pt-BR", timezoneId: "America/Rio_Branco" });
 await ctx.route(/fonts\.(googleapis|gstatic)\.com/, (r) => r.fulfill({ status: 200, contentType: "text/css", body: "" }));
 async function pagina(vp) {
   const p = await ctx.newPage();

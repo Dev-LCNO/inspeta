@@ -32,3 +32,13 @@ self.addEventListener("fetch", (e) => {
     })),
   );
 });
+
+// Toque no aviso de agendamento: foca uma janela aberta do app ou abre a agenda.
+self.addEventListener("notificationclick", (e) => {
+  e.notification.close();
+  const url = new URL(e.notification.data?.url ?? "./#/campo/agenda", self.registration.scope).href;
+  e.waitUntil(self.clients.matchAll({ type: "window", includeUncontrolled: true }).then((cs) => {
+    const c = cs.find((x) => x.url.startsWith(self.registration.scope));
+    return c ? c.navigate(url).then((w) => (w ?? c).focus()) : self.clients.openWindow(url);
+  }));
+});

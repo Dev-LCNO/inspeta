@@ -1,6 +1,6 @@
 // Dados de exemplo — textos escritos para este produto (nenhum vem do original).
 import type { FormDefinition } from "@app/form-engine";
-import type { Acao, Acesso, Avaliado, Equipe, Formulario, FormularioVersao, Funcao, MembroRegistro, Organizacao, PlanoModelo } from "./types";
+import type { Acao, Acesso, Agendamento, Avaliado, Equipe, Formulario, FormularioVersao, Funcao, MembroRegistro, Organizacao, PlanoModelo } from "./types";
 
 export const ORG: Organizacao = { id: "org-1", nome: "Distribuidora Exemplo", fuso_horario: "America/Rio_Branco" };
 
@@ -201,3 +201,14 @@ export const PLANOS_MODELO: PlanoModelo[] = [
     ] }] },
   },
 ];
+
+/** Agendamentos de exemplo, relativos a "hoje" (a data é passada na criação do estado). */
+export function agendamentosIniciais(hoje: string): Agendamento[] {
+  const base = { org_id: ORG.id, fuso_horario: ORG.fuso_horario, ativo: true, materializado_ate: null, criado_por: "m-rogerio", created_at: now, updated_at: now };
+  return [
+    { ...base, id: "ag-flv-centro", formulario_id: "f-flv", avaliado_id: "a-centro", responsaveis: ["m-ana"], data_inicio: hoje,
+      horarios: [], dia_inteiro: true, recorrencia: "diaria", termino: "nunca" },
+    { ...base, id: "ag-receb-doca", formulario_id: "f-receb", avaliado_id: "a-doca3", responsaveis: ["m-rogerio"], data_inicio: hoje,
+      horarios: ["07:30"], dia_inteiro: false, recorrencia: "semanal", dias_semana: [1, 3, 5], termino: "nunca" },
+  ];
+}

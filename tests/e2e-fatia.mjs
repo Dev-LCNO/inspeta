@@ -104,7 +104,7 @@ await p.getByRole("button", { name: "Próximo" }).click();
 // --- tópico 3: Encerramento (assinatura)
 await p.locator("h1", { hasText: "Encerramento" }).waitFor();
 await p.getByRole("button", { name: "Revisar" }).click();
-await p.getByText(/Faltam 1 para finalizar/).waitFor();
+await p.getByText(/Falta 1 questão para finalizar/).waitFor();
 passo("revisão bloqueia: falta a assinatura obrigatória");
 await shot(p, "M06-revisao-pend-390");
 await p.getByRole("button", { name: /Assinatura do responsável/ }).click();
