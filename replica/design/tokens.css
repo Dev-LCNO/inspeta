@@ -1,0 +1,161 @@
+/* GERADO por build_tokens.py a partir de tokens.json — não edite à mão. */
+
+:root {
+  color-scheme: light;
+  --c-bg: #ffffff;
+  --c-surface: #f4f5f2;
+  --c-surface-2: #e8eae4;
+  --c-border: #d6d9d0;
+  --c-border-input: #767c70;
+  --c-text: #161a14;
+  --c-text-muted: #535a50;
+  --c-text-disabled: #8d9388;
+  --c-accent: #27466f;
+  --c-accent-hover: #1d3655;
+  --c-accent-soft: #e6edf6;
+  --c-on-accent: #ffffff;
+  --c-focus: #2f63c7;
+  --c-success: #14693b;
+  --c-success-soft: #e2f3e8;
+  --c-on-success: #ffffff;
+  --c-danger: #b1251a;
+  --c-danger-soft: #fcebe9;
+  --c-on-danger: #ffffff;
+  --c-warning: #7f5200;
+  --c-warning-soft: #fff2d1;
+  --c-na: #5b6159;
+  --c-na-soft: #eceee9;
+  --c-rank-good: #14693b;
+  --c-rank-mid: #8a5a00;
+  --c-rank-bad: #b1251a;
+  --c-overlay: #161a14;
+  --font-sans: "IBM Plex Sans", system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  --font-mono: "IBM Plex Mono", ui-monospace, SFMono-Regular, Menlo, monospace;
+  --text-xs: 0.75rem;
+  --text-xs--line-height: 1rem;
+  --text-xs--font-weight: 500;
+  --text-sm: 0.875rem;
+  --text-sm--line-height: 1.25rem;
+  --text-sm--font-weight: 400;
+  --text-base: 1rem;
+  --text-base--line-height: 1.5rem;
+  --text-base--font-weight: 400;
+  --text-md: 1.125rem;
+  --text-md--line-height: 1.625rem;
+  --text-md--font-weight: 600;
+  --text-lg: 1.25rem;
+  --text-lg--line-height: 1.75rem;
+  --text-lg--font-weight: 600;
+  --text-xl: 1.75rem;
+  --text-xl--line-height: 2.125rem;
+  --text-xl--font-weight: 700;
+  --text-display: 2.5rem;
+  --text-display--line-height: 2.75rem;
+  --text-display--font-weight: 700;
+  --space-0: 0px;
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-5: 20px;
+  --space-6: 24px;
+  --space-7: 32px;
+  --space-8: 40px;
+  --space-9: 48px;
+  --space-10: 64px;
+  --radius-sm: 4px;
+  --radius-md: 8px;
+  --radius-lg: 12px;
+  --radius-pill: 999px;
+  --bw-hair: 1px;
+  --bw-input: 1.5px;
+  --bw-strong: 2px;
+  --bw-focus: 3px;
+  --shadow-card: 0 1px 0 rgba(22,26,20,.06), 0 1px 3px rgba(22,26,20,.08);
+  --shadow-pop: 0 10px 30px rgba(22,26,20,.18);
+  --shadow-bar: 0 -1px 0 rgba(22,26,20,.10), 0 -6px 16px rgba(22,26,20,.06);
+  --motion-fast: 100ms;
+  --motion-base: 180ms;
+  --motion-ease: cubic-bezier(.2,.8,.2,1);
+  --touch-min: 48px;
+  --touch-answer: 56px;
+  --touch-bottom-bar: 72px;
+  --layout-sidebar: 248px;
+  --layout-sidebar-collapsed: 64px;
+  --layout-header: 56px;
+  --layout-content-max: 1280px;
+  --layout-form-max: 760px;
+  --z-sticky: 10;
+  --z-drawer: 30;
+  --z-modal: 40;
+  --z-toast: 50;
+}
+
+/* modo escuro: segue o sistema, a menos que o usuário force claro */
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    color-scheme: dark;
+    --c-bg: #111310;
+    --c-surface: #1a1d18;
+    --c-surface-2: #242821;
+    --c-border: #343a30;
+    --c-border-input: #848b7e;
+    --c-text: #eef0ea;
+    --c-text-muted: #aab1a3;
+    --c-text-disabled: #6e7569;
+    --c-accent: #9dbcf0;
+    --c-accent-hover: #b8cff5;
+    --c-accent-soft: #1e2a3b;
+    --c-on-accent: #0b1625;
+    --c-focus: #8fb3ff;
+    --c-success: #5fcf8c;
+    --c-success-soft: #16281c;
+    --c-on-success: #06150c;
+    --c-danger: #ff8f84;
+    --c-danger-soft: #2e1715;
+    --c-on-danger: #210806;
+    --c-warning: #f2c14e;
+    --c-warning-soft: #2b2410;
+    --c-na: #a3aa9c;
+    --c-na-soft: #23271f;
+    --c-rank-good: #5fcf8c;
+    --c-rank-mid: #f2c14e;
+    --c-rank-bad: #ff8f84;
+    --c-overlay: #000000;
+  }
+}
+:root[data-theme="dark"] {
+  color-scheme: dark;
+  --c-bg: #111310;
+  --c-surface: #1a1d18;
+  --c-surface-2: #242821;
+  --c-border: #343a30;
+  --c-border-input: #848b7e;
+  --c-text: #eef0ea;
+  --c-text-muted: #aab1a3;
+  --c-text-disabled: #6e7569;
+  --c-accent: #9dbcf0;
+  --c-accent-hover: #b8cff5;
+  --c-accent-soft: #1e2a3b;
+  --c-on-accent: #0b1625;
+  --c-focus: #8fb3ff;
+  --c-success: #5fcf8c;
+  --c-success-soft: #16281c;
+  --c-on-success: #06150c;
+  --c-danger: #ff8f84;
+  --c-danger-soft: #2e1715;
+  --c-on-danger: #210806;
+  --c-warning: #f2c14e;
+  --c-warning-soft: #2b2410;
+  --c-na: #a3aa9c;
+  --c-na-soft: #23271f;
+  --c-rank-good: #5fcf8c;
+  --c-rank-mid: #f2c14e;
+  --c-rank-bad: #ff8f84;
+  --c-overlay: #000000;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  :root { --motion-fast: 0ms; --motion-base: 0ms; }
+}
+
