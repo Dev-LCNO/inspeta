@@ -29,6 +29,10 @@
   --c-rank-mid: #8a5a00;
   --c-rank-bad: #b1251a;
   --c-overlay: #161a14;
+  --c-viz-series: #2a78d6;
+  --c-viz-series-soft: #cde2fb;
+  --c-viz-grid: #e8eae4;
+  --c-viz-axis: #c3c7bd;
   --font-sans: "IBM Plex Sans", system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
   --font-mono: "IBM Plex Mono", ui-monospace, SFMono-Regular, Menlo, monospace;
   --text-xs: 0.75rem;
@@ -122,6 +126,10 @@
     --c-rank-mid: #f2c14e;
     --c-rank-bad: #ff8f84;
     --c-overlay: #000000;
+    --c-viz-series: #3987e5;
+    --c-viz-series-soft: #1c3a5f;
+    --c-viz-grid: #262a23;
+    --c-viz-axis: #3b4136;
   }
 }
 :root[data-theme="dark"] {
@@ -153,6 +161,10 @@
   --c-rank-mid: #f2c14e;
   --c-rank-bad: #ff8f84;
   --c-overlay: #000000;
+  --c-viz-series: #3987e5;
+  --c-viz-series-soft: #1c3a5f;
+  --c-viz-grid: #262a23;
+  --c-viz-axis: #3b4136;
 }
 
 @media (prefers-reduced-motion: reduce) {

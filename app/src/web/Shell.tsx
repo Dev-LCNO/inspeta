@@ -12,7 +12,7 @@ const NAV: { to: string; label: string; icon: IconName; soon?: string }[] = [
   { to: "/web/formularios", label: "Formulários", icon: "file" },
   { to: "/web/avaliados", label: "Avaliados", icon: "store" },
   { to: "/web/planos", label: "Planos de ação", icon: "target" },
-  { to: "/web/painel", label: "Painel", icon: "chart", soon: "M3" },
+  { to: "/web/painel", label: "Painel", icon: "chart" },
   { to: "/web/aprovacoes", label: "Aprovações", icon: "stamp", soon: "M3" },
   { to: "/web/workflows", label: "Workflows", icon: "flow", soon: "M4" },
   { to: "/web/emails", label: "E-mails enviados", icon: "mail" },

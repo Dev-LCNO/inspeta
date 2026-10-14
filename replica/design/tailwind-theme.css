@@ -27,6 +27,10 @@
   --color-rank-mid: var(--c-rank-mid);
   --color-rank-bad: var(--c-rank-bad);
   --color-overlay: var(--c-overlay);
+  --color-viz-series: var(--c-viz-series);
+  --color-viz-series-soft: var(--c-viz-series-soft);
+  --color-viz-grid: var(--c-viz-grid);
+  --color-viz-axis: var(--c-viz-axis);
   --font-sans: var(--font-sans);
   --font-mono: var(--font-mono);
   --text-xs: var(--text-xs);

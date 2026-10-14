@@ -6,7 +6,7 @@ import { emitChange, kv, serial } from "./kv";
 import { net } from "./net";
 import { ACESSO_EQUIPE_NOVA, ACESSO_PESSOA_NOVA, resolverMembros } from "./acesso";
 import { descreverRegra, instantesDaRegra, limiteDaOcorrencia, situacaoOcorrencia, somarDias as somarDiasAg, validarRegra } from "./agenda";
-import { agendamentosIniciais, AVALIADOS, EQUIPES, FORMULARIOS, FUNCOES, HISTORICO, MEMBROS_REG, ORG, PLANOS_MODELO, VERSOES } from "./seed";
+import { agendamentosIniciais, historicoDemo, AVALIADOS, EQUIPES, FORMULARIOS, FUNCOES, HISTORICO, MEMBROS_REG, ORG, PLANOS_MODELO, VERSOES } from "./seed";
 import {
   OfflineError,
   type Avaliado, type FiltroInspecoes, type Formulario, type FormularioVersao, type ID, type Inspecao,
@@ -589,6 +589,90 @@ export const server = {
     };
     if (opts.simular) return aplicar(clone(await load()));
     return mutate("avaliados", aplicar);
+  },
+
+  // ---- painel de indicadores ----
+  /** Preenche 12 semanas de histórico fictício (marcado "demo") para o painel ter o que mostrar. Idempotente. */
+  gerarDadosDemo(quem: Membro): Promise<number> {
+    if (!quem.is_master) return Promise.reject(new Error("Só o dono da conta pode gerar dados de exemplo."));
+    return mutate("inspecoes", (s) => {
+      let n = 0;
+      for (const h of historicoDemo(hojeNaOrg())) {
+        if (s.inspecoes.some((i) => i.client_uuid === h.client_uuid)) continue;
+        const r = processar(s, membroEm(s, h.responsavel_id), { ...h, respostas: h.respostas as Answers, status: "completa", anexos: [], device_id: "demo" }, h.finalizada_em);
+        if (r.ok) n++;
+      }
+      return n;
+    });
+  },
+  async painel(quem: Membro, filtro: { de: string; ate: string; formulario_id?: ID }) {
+    if (!pode(quem, "ver_painel")) throw new Error("Você não tem acesso ao painel.");
+    await latency();
+    const s = await load();
+    const dia = (iso: string) => dataNaOrg(iso);
+    const dur = (Date.parse(filtro.ate) - Date.parse(filtro.de)) / 864e5 + 1;
+    const antDe = somarDiasAg(filtro.de, -dur), antAte = somarDiasAg(filtro.de, -1);
+    const base = s.inspecoes.filter((i) => i.status !== "rascunho" && i.finalizada_em && podeVerInspecao(quem, i)
+      && (!filtro.formulario_id || i.formulario_id === filtro.formulario_id));
+    const no = (de: string, ate: string) => base.filter((i) => { const d = dia(i.finalizada_em!); return d >= de && d <= ate; });
+    const atual = no(filtro.de, filtro.ate), anterior = no(antDe, antAte);
+    const media = (xs: Inspecao[]) => { const v = xs.map((i) => i.nota_pct).filter((x): x is number => x !== null); return v.length ? v.reduce((a, b) => a + b, 0) / v.length : null; };
+    const ncPor = (xs: Inspecao[]) => (xs.length ? xs.reduce((a, i) => a + i.qtd_nao_conformidades, 0) / xs.length : null);
+
+    // agenda no período: cumpridas × atrasadas (as pendentes no prazo ainda não contam)
+    const agora = Date.now();
+    const ocs = s.ocorrencias.flatMap((o) => {
+      const a = s.agendamentos.find((x) => x.id === o.agendamento_id);
+      if (!a || !podeVerAgendamento(quem, a) || (filtro.formulario_id && a.formulario_id !== filtro.formulario_id)) return [];
+      const d = dia(o.previsto_em);
+      return d >= filtro.de && d <= filtro.ate ? [situacaoOcorrencia(o, a, agora)] : [];
+    });
+    const cumpridas = ocs.filter((x) => x === "completa").length, atrasadas = ocs.filter((x) => x === "atrasada").length;
+
+    // série semanal (semana começa na segunda)
+    const segunda = (d: string) => somarDiasAg(d, -((new Date(d + "T12:00:00Z").getUTCDay() + 6) % 7));
+    const semanas: { semana: string; nota: number | null; qtd: number }[] = [];
+    for (let w = segunda(filtro.de); w <= filtro.ate; w = somarDiasAg(w, 7)) {
+      const xs = atual.filter((i) => segunda(dia(i.finalizada_em!)) === w);
+      semanas.push({ semana: w, nota: media(xs), qtd: xs.length });
+    }
+
+    const porAvaliado = [...new Set(atual.map((i) => i.avaliado_id))].map((id) => {
+      const xs = atual.filter((i) => i.avaliado_id === id);
+      return { id, nome: s.avaliados.find((a) => a.id === id)?.nome ?? "Avaliado removido", nota: media(xs), qtd: xs.length, ncs: xs.reduce((a, i) => a + i.qtd_nao_conformidades, 0) };
+    }).sort((a, b) => (a.nota ?? 101) - (b.nota ?? 101) || a.nome.localeCompare(b.nome, "pt-BR"));
+
+    const titulos = new Map<string, string>();
+    const ncCont = new Map<string, { n: number; aplicaveis: number; formulario: string }>();
+    for (const i of atual) {
+      const v = s.versoes.find((x) => x.id === i.formulario_versao_id);
+      const form = s.formularios.find((f) => f.id === i.formulario_id)?.nome ?? "";
+      for (const q of v?.definicao.topicos.flatMap((t) => t.questoes) ?? []) titulos.set(i.formulario_id + "|" + q.key, q.titulo);
+      for (const [k, r] of Object.entries(i.resultado.questoes)) {
+        if (r.conforme === null) continue;
+        const c = ncCont.get(i.formulario_id + "|" + k) ?? { n: 0, aplicaveis: 0, formulario: form };
+        c.aplicaveis++;
+        if (r.conforme === false) c.n++;
+        ncCont.set(i.formulario_id + "|" + k, c);
+      }
+    }
+    const topNcs = [...ncCont.entries()].filter(([, c]) => c.n > 0)
+      .map(([k, c]) => ({ chave: k, titulo: titulos.get(k) ?? "Questão", formulario: c.formulario, n: c.n, pct: (c.n / c.aplicaveis) * 100 }))
+      .sort((a, b) => b.n - a.n || b.pct - a.pct).slice(0, 8);
+
+    return {
+      periodo: { de: filtro.de, ate: filtro.ate, anterior: { de: antDe, ate: antAte } },
+      kpis: {
+        inspecoes: { atual: atual.length, anterior: anterior.length },
+        nota: { atual: media(atual), anterior: media(anterior) },
+        ncs_por_inspecao: { atual: ncPor(atual), anterior: ncPor(anterior) },
+        agenda: { cumpridas, atrasadas, pct: cumpridas + atrasadas ? (cumpridas / (cumpridas + atrasadas)) * 100 : null },
+        planos_em_atraso: s.planos.filter((p) => situacao(p, hojeNaOrg()) === "em_atraso" && (!filtro.formulario_id || p.formulario_id === filtro.formulario_id)
+          && base.some((i) => i.id === p.inspecao_id)).length,
+      },
+      semanas, porAvaliado, topNcs,
+      formularios: s.formularios.filter((f) => !f.arquivado).map((f) => ({ id: f.id, nome: f.nome })),
+    };
   },
 
   // ---- agendamentos (S05–S07) ----

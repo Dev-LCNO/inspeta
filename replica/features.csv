@@ -60,7 +60,7 @@ Notificação push no horário,agenda,should,yes,partial,aviso local pelo servic
 Inativar agendamento com justificativa,agenda,could,yes,yes,S07: só esta ou esta e as seguintes (encerra o agendamento)
 Workflow visual (início/formulário/condição/status),workflow,could,yes,no,S28
 Respostas repetidas entre etapas do workflow,workflow,could,yes,no,
-Painel/dashboard de indicadores,bi,should,yes,no,original vende como Panorama separado — oportunidade
+Painel/dashboard de indicadores,bi,should,yes,yes,"KPIs com comparação ao período anterior, nota semanal, nota por avaliado, NCs mais frequentes, tabela, filtros na URL; incluso (o original vende à parte)"
 CLICQ Produto (defeitos/amostragem por lote),produto,could,yes,no,v2
 Amostragem sequencial,produto,could,yes,no,v2
 Plano APPCC,processo,could,yes,no,v2

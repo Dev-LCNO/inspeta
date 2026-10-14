@@ -212,3 +212,61 @@ export function agendamentosIniciais(hoje: string): Agendamento[] {
       horarios: ["07:30"], dia_inteiro: false, recorrencia: "semanal", dias_semana: [1, 3, 5], termino: "nunca" },
   ];
 }
+
+// ---------------------------------------------------------------------------
+// Dados de demonstração para o painel (só quando o dono pede; marcados "demo").
+// Gerador determinístico: a mesma data gera sempre o mesmo histórico.
+// ---------------------------------------------------------------------------
+
+export interface InspecaoDemo {
+  client_uuid: string; formulario_id: string; formulario_versao_id: string; avaliado_id: string; responsavel_id: string;
+  iniciada_em: string; finalizada_em: string; respostas: Record<string, Record<string, unknown>>;
+}
+
+function prng(seed: number) {
+  return () => { seed = (seed + 0x6d2b79f5) | 0; let t = Math.imul(seed ^ (seed >>> 15), 1 | seed); t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t; return ((t ^ (t >>> 14)) >>> 0) / 4294967296; };
+}
+
+/** 12 semanas: Loja 01 piorando, Loja 02 melhorando, CD estável. Termina ontem. */
+export function historicoDemo(hoje: string): InspecaoDemo[] {
+  const r = prng(20261014);
+  const out: InspecaoDemo[] = [];
+  const dia0 = Date.parse(hoje + "T12:00:00Z") - 84 * 864e5;
+  let n = 0;
+  for (let semana = 0; semana < 12; semana++) {
+    const t = semana / 11; // 0 → 1 ao longo do período
+    for (const [av, risco, dias] of [["a-bosque", 0.15 + 0.35 * t, [1, 4]], ["a-centro", 0.45 - 0.35 * t, [2, 5]], ["a-doca3", 0.25, [1, 3]]] as const) {
+      for (const d of dias) {
+        const ini = dia0 + (semana * 7 + d) * 864e5 + Math.floor(r() * 6) * 3600e3; // 12h–17h UTC = manhã/tarde no Acre
+        if (ini >= Date.parse(hoje + "T00:00:00Z")) continue;
+        const p = (x: number) => r() < x;
+        const id = `demo-${String(++n).padStart(3, "0")}`;
+        if (av === "a-doca3") {
+          const temp = Math.round((3 + r() * (p(risco) ? 7 : 3.5)) * 10) / 10;
+          const lacreOk = !p(risco / 2);
+          out.push({ client_uuid: id, formulario_id: "f-receb", formulario_versao_id: "fv-receb-1", avaliado_id: av, responsavel_id: "m-rogerio",
+            iniciada_em: new Date(ini).toISOString(), finalizada_em: new Date(ini + 15 * 6e4).toISOString(), respostas: {
+              "r-nf": { texto: String(100000 + Math.floor(r() * 899999)) },
+              "r-lacre": lacreOk ? { opcoes: ["r-lacre-sim"] } : { opcoes: ["r-lacre-nao"], fotos: 1 },
+              "r-bruto": { numero: 12 + Math.round(r() * 30) / 10 }, "r-tara": { numero: 0.6 },
+              "r-temp": temp > 7 ? { numero: temp, observacao: "Acima do limite na chegada." } : { numero: temp },
+            } });
+          continue;
+        }
+        const temp = Math.round((1 + r() * (p(risco) ? 7 : 3)) * 10) / 10;
+        const venc = p(risco), preco = p(risco * 0.8), porta = p(risco * 0.6), avaria = p(risco * 0.7);
+        out.push({ client_uuid: id, formulario_id: "f-flv", formulario_versao_id: "fv-flv-1", avaliado_id: av, responsavel_id: p(0.5) ? "m-ana" : "m-carlos",
+          iniciada_em: new Date(ini).toISOString(), finalizada_em: new Date(ini + 25 * 6e4).toISOString(), respostas: {
+            "q-vencidos": venc ? { opcoes: ["q-vencidos-nao"], fotos: 1, observacao: "Lote vencido na bancada." } : { opcoes: ["q-vencidos-sim"] },
+            "q-preco": preco ? { opcoes: ["q-preco-nao"], observacao: "Itens sem etiqueta." } : { opcoes: ["q-preco-sim"] },
+            "q-gondola": { opcoes: avaria ? ["q-gondola-limpa", "q-gondola-avaria"] : ["q-gondola-limpa", "q-gondola-abastecida"] },
+            "q-temp": temp > 4 ? { numero: temp, fotos: 1, observacao: "Fora da faixa." } : { numero: temp, fotos: 1 },
+            "q-porta": porta ? { opcoes: ["q-porta-nao"] } : { opcoes: ["q-porta-sim"] },
+            ...(porta ? { "q-porta-motivo": { texto: "Borracha ressecada." } } : {}),
+            "q-ass": { assinatura: "demo" },
+          } });
+      }
+    }
+  }
+  return out.sort((a, b) => a.finalizada_em.localeCompare(b.finalizada_em));
+}
