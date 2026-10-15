@@ -9,7 +9,7 @@
 import { resolverMembros } from "../app/src/data/acesso";
 import { pode, type ServerApi } from "../app/src/data/nucleo";
 import type { Acao, Membro, Organizacao } from "../app/src/data/types";
-import { servidorDaOrg, type Anexos, type Sql } from "./repo";
+import { naOrg, servidorDaOrg, type Anexos, type Sql } from "./repo";
 
 export interface ConfigApi {
   sql: Sql;
@@ -25,7 +25,24 @@ export interface ConfigApi {
   /** Origens que podem chamar a API (CORS). Vazio = qualquer uma (só para desenvolvimento). */
   origens?: string[];
   agora?: () => number;
+  /** Limites de pedidos (false desliga — só para testes de carga locais). */
+  limites?: Partial<Limites> | false;
 }
+
+/** Quantos pedidos cabem em cada janela. Contados no Postgres (interno.consumir), valem para todas as instâncias. */
+export interface Limites {
+  /** qualquer pedido, por IP, por minuto */
+  porIp: number;
+  /** pedidos autenticados, por pessoa, por minuto (a sincronização de fotos manda vários de uma vez) */
+  porUsuario: number;
+  /** link público do plano, por IP, por minuto */
+  publicoPorIp: number;
+  /** tentativas com token inválido/ausente, por IP, a cada 10 minutos */
+  falhasPorIp: number;
+  /** convites (mandam e-mail), por organização, por hora */
+  convitesPorOrg: number;
+}
+export const LIMITES_PADRAO: Limites = { porIp: 600, porUsuario: 300, publicoPorIp: 30, falhasPorIp: 20, convitesPorOrg: 30 };
 
 type Regra = {
   /** ação exigida da função do membro ("membro" = qualquer pessoa ativa da organização) */
@@ -68,7 +85,8 @@ export const METODOS: Partial<Record<keyof ServerApi, Regra>> = {
 /** Sem login: só com o token do link (a organização é achada pelo hash). */
 const PUBLICOS = new Set(["planoPorToken", "responderPlano"]);
 
-class ErroHttp extends Error { constructor(public status: number, msg: string) { super(msg); } }
+class ErroHttp extends Error { constructor(public status: number, msg: string, public esperar?: number) { super(msg); } }
+const MUITOS = (s: number) => new ErroHttp(429, "Muitas tentativas em pouco tempo. Espere um pouco e tente de novo.", s);
 
 async function sha256(t: string): Promise<string> {
   const d = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(t));
@@ -78,6 +96,24 @@ async function sha256(t: string): Promise<string> {
 export function criarApi(cfg: ConfigApi): (req: Request) => Promise<Response> {
   const cacheUsuario = new Map<string, { email: string; ate: number }>();
   const agora = cfg.agora ?? Date.now;
+  const lim: Limites | null = cfg.limites === false ? null : { ...LIMITES_PADRAO, ...(cfg.limites ?? {}) };
+
+  /** Soma 1 no contador; passou do limite → 429. */
+  async function consumir(chave: string, limite: number, janelaS: number): Promise<void> {
+    if (!lim) return;
+    const [r] = await cfg.sql<{ ok: boolean }>`select interno.consumir(${chave}, ${limite}, ${janelaS}) as ok`;
+    if (!r?.ok) throw MUITOS(janelaS);
+  }
+  async function jaPassou(chave: string, limite: number, janelaS: number): Promise<void> {
+    if (!lim) return;
+    const [r] = await cfg.sql<{ n: number }>`select interno.contagem(${chave}, ${janelaS}) as n`;
+    if (Number(r?.n ?? 0) >= limite) throw MUITOS(janelaS);
+  }
+  /** IP de quem chama (primeiro do X-Forwarded-For), guardado só como hash curto. */
+  async function chaveIp(req: Request): Promise<string> {
+    const ip = (req.headers.get("x-forwarded-for") ?? "").split(",")[0]!.trim() || req.headers.get("x-real-ip") || "sem-ip";
+    return (await sha256("inspeta-ip:" + ip)).slice(0, 24);
+  }
 
   async function usuarioDoToken(jwt: string): Promise<string> {
     const c = cacheUsuario.get(jwt);
@@ -143,10 +179,16 @@ export function criarApi(cfg: ConfigApi): (req: Request) => Promise<Response> {
     } catch (e) { return json(req, e instanceof ErroHttp ? e.status : 400, { ok: false, erro: e instanceof ErroHttp ? e.message : "Corpo inválido." }); }
     const metodo = String(corpo.metodo ?? "");
     const args = Array.isArray(corpo.args) ? [...corpo.args] : [];
+    let ip = "";
 
     try {
+      if (lim) {
+        ip = await chaveIp(req);
+        await consumir(`ip:${ip}`, lim.porIp, 60);
+      }
       // ---- público: link do plano de ação ----
       if (PUBLICOS.has(metodo)) {
+        if (lim) await consumir(`pub:${ip}`, lim.publicoPorIp, 60);
         const org = await orgDoToken(String(args[0] ?? ""));
         const { servidor, avisos } = servidorDaOrg(cfg.sql, org, { urlApp: cfg.urlApp, anexos: cfg.anexos, enviaEmails: cfg.enviaEmails });
         const fn = servidor[metodo as "planoPorToken"] as (...a: unknown[]) => Promise<unknown>;
@@ -156,8 +198,10 @@ export function criarApi(cfg: ConfigApi): (req: Request) => Promise<Response> {
 
       // ---- autenticado ----
       const auth = req.headers.get("Authorization") ?? "";
+      if (lim) await jaPassou(`falha:${ip}`, lim.falhasPorIp, 600); // quem errou demais nem chega a consultar o Auth
       if (!auth.startsWith("Bearer ")) throw new ErroHttp(401, "Entre para continuar.");
       const email = await usuarioDoToken(auth.slice(7));
+      if (lim) await consumir(`u:${(await sha256(email)).slice(0, 24)}`, lim.porUsuario, 60);
       const org = await orgDoEmail(email);
       const { servidor, avisos } = servidorDaOrg(cfg.sql, org, { urlApp: cfg.urlApp, anexos: cfg.anexos, enviaEmails: cfg.enviaEmails });
       const quem = await servidor._membroPorEmail(email);
@@ -175,18 +219,25 @@ export function criarApi(cfg: ConfigApi): (req: Request) => Promise<Response> {
       if (regra.ver && !(await servidor._podeVer(quem, regra.ver.tipo, String(args[regra.ver.arg] ?? ""))))
         throw new ErroHttp(404, regra.ver.tipo === "inspecao" ? "Inspeção não encontrada." : "Arquivo não encontrado.");
 
+      if (metodo === "convidarPessoa" && lim) await consumir(`convite:${org.id}`, lim.convitesPorOrg, 3600);
       const fn = servidor[metodo as keyof ServerApi] as unknown as (...a: unknown[]) => Promise<unknown>;
       const valor = await fn.apply(servidor, args);
 
       if (metodo === "convidarPessoa" && valor && typeof valor === "object" && "email" in valor) await convidar(String((valor as { email: string }).email));
       if (avisos.size && metodo !== "rodarAgenda") {
-        await cfg.sql`insert into auditoria (org_id, membro_id, metodo) values (${org.id}, ${quem.id}, ${metodo})`;
+        await naOrg(cfg.sql, org.id, async (t) => t`insert into auditoria (org_id, membro_id, metodo) values (${org.id}, ${quem.id}, ${metodo})`);
       }
       // quando muda gente/função/equipe, o cliente recebe a lista atualizada junto
       const extra = avisos.has("membros") ? { membros: await servidor._membrosResolvidos() } : {};
       return json(req, 200, { ok: true, valor: valor ?? null, avisos: [...avisos], ...extra });
     } catch (e) {
-      if (e instanceof ErroHttp) return json(req, e.status, { ok: false, erro: e.message });
+      if (e instanceof ErroHttp) {
+        // token ausente/inválido conta como falha do IP (freia quem fica testando tokens)
+        if (e.status === 401 && lim && ip) await consumir(`falha:${ip}`, 2_147_483_647, 600).catch(() => undefined);
+        const r = json(req, e.status, { ok: false, erro: e.message });
+        if (e.esperar) r.headers.set("Retry-After", String(e.esperar));
+        return r;
+      }
       const msg = e instanceof Error ? e.message : String(e);
       // erro de regra é um Error simples com mensagem para a pessoa; qualquer outro (banco, TypeError...) é interno
       // e não vaza detalhe para o cliente

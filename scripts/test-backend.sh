@@ -8,6 +8,8 @@ PORT=54321
 DB=$(backend/scripts/pg-local.sh)
 echo "== fila de e-mails, criar organização, agendador (Postgres)"
 DATABASE_URL="$DB" bun backend/jobs.test.ts
+echo "== segunda barreira, limites de pedidos, bloqueio de senha (Postgres)"
+DATABASE_URL="$DB" bun backend/seguranca.test.ts
 INSPETA_API=http://localhost:$PORT/functions/v1/api INSPETA_AUTH=http://localhost:$PORT/auth/v1 INSPETA_ANON_KEY=anon-local OUT=app/dist-real ./scripts/build.sh
 DEV=1 DATABASE_URL="$DB" APP_DIR=app/dist-real PORT=$PORT bun backend/dev.ts > /tmp/inspeta-dev.log 2>&1 & SRV=$!
 trap 'kill $SRV 2>/dev/null || true' EXIT

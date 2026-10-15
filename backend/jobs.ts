@@ -105,3 +105,9 @@ export async function criarOrganizacao(sql: Sql, p: PedidoOrg, op: { authUrl: st
   return { status: 200, corpo: { org: org.id, convite: r.ok ? "enviado" : `falhou (${r.status}) — o dono pode usar "Esqueci minha senha" na tela de entrar` } };
 }
 
+
+/** Apaga contadores de limite e tentativas de senha antigos (rodado pela função jobs). */
+export async function limparContadores(sql: Sql): Promise<void> {
+  await sql`delete from interno.limites where criado < now() - interval '1 day'`;
+  await sql`delete from interno.tentativas_senha where coalesce(bloqueado_ate, primeira_falha) < now() - interval '1 day'`;
+}

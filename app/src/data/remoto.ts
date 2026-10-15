@@ -33,6 +33,7 @@ export function criarServidorRemoto(api: string): ServerApi {
       r = await fetch(`${AUTH}/${caminho}`, { method: "POST", headers: { apikey: ANON, "Content-Type": "application/json" }, body: JSON.stringify(corpo) });
     } catch { throw new OfflineError(); }
     const j = (await r.json().catch(() => ({}))) as { access_token?: string; refresh_token?: string; expires_in?: number; error_description?: string; msg?: string };
+    if (r.status === 429) throw new Error(j.msg && /tentativas/i.test(j.msg) ? j.msg : "Muitas tentativas em pouco tempo. Espere alguns minutos e tente de novo.");
     if (!r.ok || !j.access_token) {
       const m = j.error_description ?? j.msg ?? "";
       throw new Error(/confirm/i.test(m) ? "Confirme seu e-mail pelo link que enviamos antes de entrar." : "E-mail ou senha incorretos.");

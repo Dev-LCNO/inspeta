@@ -2,13 +2,13 @@
 // Rodar: bun backend/jobs.test.ts (com backend/scripts/pg-local.sh no ar)
 import assert from "node:assert/strict";
 import { criarServidor } from "../app/src/data/nucleo";
-import { criarOrganizacao, enviarEmailsPendentes, type Mensagem } from "./jobs";
+import { criarOrganizacao, enviarEmailsPendentes, limparContadores, type Mensagem } from "./jobs";
 import { leitorConfig, mesmoSegredo } from "./configInterna";
 import { provisionar } from "./provisionar";
 import { ambientePg, anexosNoBanco, type Sql } from "./repo";
 
 const sql = new Bun.SQL(process.env.DATABASE_URL ?? "postgres://postgres@127.0.0.1:5434/postgres") as unknown as Sql & { unsafe(q: string): Promise<unknown>; close(): Promise<void> };
-for (const f of ["20261014000000_inspeta.sql", "20261014000100_cron.sql"]) await sql.unsafe(await Bun.file(new URL("../supabase/migrations/" + f, import.meta.url)).text());
+for (const f of ["20261014000000_inspeta.sql", "20261014000100_cron.sql", "20261014000200_seguranca.sql"]) await sql.unsafe(await Bun.file(new URL("../supabase/migrations/" + f, import.meta.url)).text());
 const org = await provisionar(sql, { nome: "Teste de e-mail " + Date.now(), dono: { nome: "Dono", email: `dono+${Date.now()}@exemplo.com` }, demo: true });
 const amb = ambientePg(sql, org, { urlApp: "https://app.exemplo/", anexos: anexosNoBanco(sql), enviaEmails: true });
 const srv = criarServidor(amb);
@@ -73,4 +73,9 @@ await sql.unsafe(await Bun.file(new URL("../supabase/migrations/20261014000100_c
 assert.equal((await ler()).cron_secret, c1.cron_secret, "rodar a migração de novo não troca o segredo");
 assert.ok(mesmoSegredo(c1.cron_secret, c1.cron_secret) && !mesmoSegredo(c1.cron_secret, c1.cron_secret.slice(0, -1) + "x") && !mesmoSegredo("", ""));
 console.log("✓ agendador: migração gera segredo aleatório uma vez só; comparação recusa segredo errado ou vazio");
+await sql`insert into interno.limites (chave, janela, n, criado) values ('velho', 1, 1, now() - interval '2 days'), ('novo', 2, 1, now())`;
+await limparContadores(sql);
+assert.deepEqual((await sql<{ chave: string }>`select chave from interno.limites where chave in ('velho','novo')`).map((r) => r.chave), ["novo"]);
+await sql`delete from interno.limites where chave = 'novo'`;
+console.log("✓ limpeza: contadores com mais de 1 dia somem");
 await sql.close();

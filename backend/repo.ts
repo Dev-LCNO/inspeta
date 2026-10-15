@@ -9,6 +9,20 @@ export interface Sql {
   begin<T>(fn: (tx: Sql) => Promise<T>): Promise<T>;
 }
 
+/**
+ * Segunda barreira: dentro da transação, troca para o papel "inspeta_api" (sem bypass de RLS) e declara a
+ * organização. As políticas do banco só mostram/aceitam linhas dessa organização (migração *_seguranca.sql).
+ */
+export async function escopoDaOrg(t: Sql, orgId: string): Promise<void> {
+  await t`select set_config('inspeta.org_id', ${orgId}, true)`;
+  await t`set local role inspeta_api`;
+}
+
+/** Roda fn numa transação já restrita à organização. */
+export function naOrg<T>(sql: Sql, orgId: string, fn: (t: Sql) => Promise<T>): Promise<T> {
+  return sql.begin(async (t) => { await escopoDaOrg(t, orgId); return fn(t); });
+}
+
 export const COLECOES = ["formularios", "versoes", "avaliados", "inspecoes", "eventos", "planosModelo", "planos", "emails",
   "membros", "funcoes", "equipes", "agendamentos", "ocorrencias", "aprovacoes", "camposAvaliado"] as const;
 type Colecao = (typeof COLECOES)[number];
@@ -28,18 +42,18 @@ export interface Anexos {
 export function anexosNoBanco(sql: Sql): Anexos {
   return {
     async get(orgId, id) {
-      const r = await sql<{ data_url: string }>`select data_url from anexos where org_id = ${orgId} and id = ${id}`;
+      const r = await naOrg(sql, orgId, async (t) => t<{ data_url: string }>`select data_url from anexos where org_id = ${orgId} and id = ${id}`);
       return r[0]?.data_url;
     },
     async set(orgId, id, dataUrl) {
       const bytes = Math.round(((dataUrl.length - dataUrl.indexOf(",") - 1) * 3) / 4);
-      await sql`insert into anexos (org_id, id, data_url, bytes) values (${orgId}, ${id}, ${dataUrl}, ${bytes})
-        on conflict (org_id, id) do nothing`; // idempotente: o aparelho pode reenviar a mesma foto
+      await naOrg(sql, orgId, async (t) => t`insert into anexos (org_id, id, data_url, bytes) values (${orgId}, ${id}, ${dataUrl}, ${bytes})
+        on conflict (org_id, id) do nothing`); // idempotente: o aparelho pode reenviar a mesma foto
     },
     async presentes(orgId, ids) {
       if (!ids.length) return new Set();
       // lista como texto: o mesmo SQL funciona no Bun.SQL e no postgres.js
-      const r = await sql<{ id: string }>`select id from anexos where org_id = ${orgId} and id = any(string_to_array(${ids.join(",")}, ','))`;
+      const r = await naOrg(sql, orgId, async (t) => t<{ id: string }>`select id from anexos where org_id = ${orgId} and id = any(string_to_array(${ids.join(",")}, ','))`);
       return new Set(r.map((x) => x.id));
     },
   };
@@ -52,7 +66,8 @@ export function ambientePg(sql: Sql, org: Organizacao, op: OpcoesAmbiente): Ambi
   let tx: Sql | null = null;
   let foto = new Map<string, string>(); // "colecao:id" -> json, do último carregamento
   let seqLido = 0;
-  const q = () => tx ?? sql;
+  // toda leitura/escrita passa por uma transação restrita à organização (ou pela de exclusivo())
+  const rodar = <T,>(fn: (t: Sql) => Promise<T>): Promise<T> => (tx ? fn(tx) : naOrg(sql, org.id, fn));
   const memoria = new Map<string, string>();
   const avisos = new Set<string>();
 
@@ -61,10 +76,10 @@ export function ambientePg(sql: Sql, org: Organizacao, op: OpcoesAmbiente): Ambi
     avisos,
     enviaEmails: op.enviaEmails,
     async carregar() {
-      const [linhas, orgs] = await Promise.all([
-        q()<{ colecao: Colecao; id: string; dados: unknown }>`select colecao, id, dados from registros where org_id = ${org.id} order by seq`,
-        q()<{ contadores: { eventoSeq?: number } }>`select contadores from orgs where id = ${org.id}`,
-      ]);
+      const [linhas, orgs] = await rodar(async (t) => [
+        await t<{ colecao: Colecao; id: string; dados: unknown }>`select colecao, id, dados from registros where org_id = ${org.id} order by seq`,
+        await t<{ contadores: { eventoSeq?: number } }>`select contadores from orgs where id = ${org.id}`,
+      ] as const);
       const s = estadoVazio();
       foto = new Map();
       for (const l of linhas) {
@@ -76,7 +91,7 @@ export function ambientePg(sql: Sql, org: Organizacao, op: OpcoesAmbiente): Ambi
       s.eventoSeq = seqLido = Number((typeof c === "string" ? JSON.parse(c) : c)?.eventoSeq ?? 0);
       return s;
     },
-    async gravar(s) {
+    async gravar(s) { await rodar(async (q) => {
       const vistos = new Set<string>();
       for (const col of COLECOES) {
         for (const item of s[col] as { id: string | number }[]) {
@@ -84,7 +99,7 @@ export function ambientePg(sql: Sql, org: Organizacao, op: OpcoesAmbiente): Ambi
           vistos.add(k);
           const json = JSON.stringify(item);
           if (foto.get(k) === json) continue;
-          await q()`insert into registros (org_id, colecao, id, dados) values (${org.id}, ${col}, ${String(item.id)}, ${json}::text::jsonb)
+          await q`insert into registros (org_id, colecao, id, dados) values (${org.id}, ${col}, ${String(item.id)}, ${json}::text::jsonb)
             on conflict (org_id, colecao, id) do update set dados = excluded.dados, atualizado = now()`;
           foto.set(k, json);
         }
@@ -92,17 +107,18 @@ export function ambientePg(sql: Sql, org: Organizacao, op: OpcoesAmbiente): Ambi
       for (const k of [...foto.keys()]) {
         if (vistos.has(k)) continue;
         const i = k.indexOf(":");
-        await q()`delete from registros where org_id = ${org.id} and colecao = ${k.slice(0, i)} and id = ${k.slice(i + 1)}`;
+        await q`delete from registros where org_id = ${org.id} and colecao = ${k.slice(0, i)} and id = ${k.slice(i + 1)}`;
         foto.delete(k);
       }
       if (s.eventoSeq !== seqLido) {
-        await q()`update orgs set contadores = jsonb_set(contadores, '{eventoSeq}', ${String(s.eventoSeq)}::text::jsonb) where id = ${org.id}`;
+        await q`update orgs set contadores = jsonb_set(contadores, '{eventoSeq}', ${String(s.eventoSeq)}::text::jsonb) where id = ${org.id}`;
         seqLido = s.eventoSeq;
       }
-    },
+    }); },
     async exclusivo(fn) {
       if (tx) return fn(); // já dentro de uma transação desta requisição
       return sql.begin(async (t) => {
+        await escopoDaOrg(t, org.id);
         await t`select pg_advisory_xact_lock(hashtext(${org.id}))`;
         tx = t;
         try { return await fn(); } finally { tx = null; }

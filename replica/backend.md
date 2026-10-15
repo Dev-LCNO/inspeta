@@ -35,8 +35,8 @@ Observação: GitHub Pages em repositório privado exige plano pago do GitHub. N
 
 - [x] Segredos só em variáveis de ambiente (Secrets do GitHub → `supabase secrets set`); `.env*` no `.gitignore`; o deploy falha se aparecer chave secreta no bundle do app
 - [~] Entrada validada no servidor: só métodos da lista `METODOS` são aceitos (internos dão 404), argumentos de identidade são substituídos pelo usuário autenticado e as regras de negócio validam os dados. Sem esquema formal (zod) por método — **pendente**
-- [x] Autorização em toda leitura e escrita, testada com segunda pessoa e segunda organização (`tests/api-seguranca.mjs`, 9 checagens)
-- [~] Limites de taxa: login, convite e recuperação de senha usam os limites do Supabase Auth. A API e o link público do plano ainda não têm limite próprio — **pendente**
+- [x] Autorização em toda leitura e escrita, testada com segunda pessoa e segunda organização (`tests/api-seguranca.mjs`, 9 checagens). **Segunda barreira no banco:** a API troca para o papel `inspeta_api` (sem bypass de RLS) em cada transação e declara a organização; as políticas RLS só deixam ver/gravar linhas dela (`backend/seguranca.test.ts`; conferido também no projeto real)
+- [x] Limites de taxa: contador no Postgres (vale para todas as instâncias) — 600 pedidos/min por IP, 300/min por pessoa, 30/min no link público por IP, 20 tokens inválidos por IP a cada 10 min (depois nem consulta o Auth), 30 convites/hora por organização; resposta 429 com Retry-After. Senha: hook do Supabase Auth bloqueia a conta 15 min depois de 5 erros em 15 min (**você liga em Authentication → Auth Hooks → Verify Password**). IP guardado só como hash; contadores somem em 1 dia
 - [x] Webhooks: não há (sem pagamentos)
 - [~] Anexos: ficam no banco e só saem pela API, com checagem de acesso. Limite de tamanho no app (fotos reduzidas); falta limite no servidor e mover para Storage em bucket separado — **pendente**
 - [x] Sem dados pessoais em URL ou log: o link do plano usa token aleatório (banco guarda só o hash e apaga o link depois do envio); o workflow mascara o e-mail

@@ -25,7 +25,11 @@ const MIG = new URL("../supabase/migrations/", import.meta.url);
 for (const f of readdirSync(MIG).filter((x) => x.endsWith(".sql")).sort()) await sql.unsafe(readFileSync(new URL(f, MIG), "utf8"));
 
 const anexos = anexosNoBanco(sql);
-const api = criarApi({ sql, authUrl: `${BASE}/auth/v1`, anonKey: "anon-local", serviceKey: "service-local", urlApp: `${BASE}/`, anexos });
+// Os testes ponta a ponta saem todos do mesmo IP: limites altos (o contador no banco roda do mesmo jeito).
+// LIMITES=padrao usa os mesmos números da produção.
+const ALTO = 1_000_000;
+const limites = process.env.LIMITES === "padrao" ? undefined : { porIp: ALTO, porUsuario: ALTO, publicoPorIp: ALTO, falhasPorIp: ALTO, convitesPorOrg: ALTO };
+const api = criarApi({ sql, authUrl: `${BASE}/auth/v1`, anonKey: "anon-local", serviceKey: "service-local", urlApp: `${BASE}/`, anexos, limites });
 
 let orgDemo: Organizacao | null = null;
 async function zerar() {
